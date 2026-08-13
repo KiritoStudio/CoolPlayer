@@ -426,6 +426,7 @@ void CP_InitialiseCodec_MPEG(CPs_CoDecModule* pCoDec)
 	pContext->info.m_iFreq_Hz         = 0;
 	pContext->info.m_bStereo          = TRUE;
 	pContext->info.m_b16bit           = (SAMPLE_DEPTH == 16);
+	pContext->info.m_iBitsPerSample   = SAMPLE_DEPTH;
 	
 	pContext->buflen = 0;
 	
@@ -543,6 +544,7 @@ BOOL CPP_OMMP3_OpenFile(CPs_CoDecModule* pModule, char const *path, DWORD dwCook
 	context->info.m_bStereo          =
 		context->frame.header.mode == MAD_MODE_SINGLE_CHANNEL ? FALSE : TRUE;
 	context->info.m_b16bit           = (SAMPLE_DEPTH == 16);
+	context->info.m_iBitsPerSample   = SAMPLE_DEPTH;
 	
 	context->buflen = 0;
 	

@@ -30,6 +30,41 @@
 #include <dsound.h>
 #include <math.h>
 
+/* WAVEFORMATEXTENSIBLE/WAVE_FORMAT_EXTENSIBLE normally come from mmreg.h via
+ * ksmedia.h; declared by hand here rather than pulling in extra WDK headers
+ * that may not be present in every cross toolchain. Only defined if the
+ * headers we do have haven't already brought them in. */
+#ifndef WAVE_FORMAT_EXTENSIBLE
+#define WAVE_FORMAT_EXTENSIBLE 0xFFFE
+#endif
+#ifndef _WAVEFORMATEXTENSIBLE_
+#define _WAVEFORMATEXTENSIBLE_
+typedef struct {
+	WAVEFORMATEX Format;
+	union {
+		WORD wValidBitsPerSample;
+		WORD wSamplesPerBlock;
+		WORD wReserved;
+	} Samples;
+	DWORD dwChannelMask;
+	GUID SubFormat;
+} WAVEFORMATEXTENSIBLE;
+#endif
+
+/* {00000001-0000-0010-8000-00AA00389B71} - fixed, well-known value, same as
+ * KSDATAFORMAT_SUBTYPE_PCM */
+static const GUID CPC_SUBFORMAT_PCM = { 0x00000001, 0x0000, 0x0010, { 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71 } };
+
+#ifndef SPEAKER_FRONT_LEFT
+#define SPEAKER_FRONT_LEFT      0x1
+#endif
+#ifndef SPEAKER_FRONT_RIGHT
+#define SPEAKER_FRONT_RIGHT     0x2
+#endif
+#ifndef SPEAKER_FRONT_CENTER
+#define SPEAKER_FRONT_CENTER    0x4
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // This is an output stage that uses DirectSound.
@@ -48,7 +83,7 @@ typedef struct __CPs_OutputContext_DirectSound
 {
 	LPDIRECTSOUNDBUFFER lpDSB;
 	LPDIRECTSOUND lpDirectSound;
-	WAVEFORMATEX WaveFile;
+	WAVEFORMATEXTENSIBLE WaveFile;
 	DWORD m_WriteCursor;
 	BOOL m_TermState_Wrapped;
 	DWORD m_TermState_WriteCursor;
@@ -138,21 +173,41 @@ void CPP_OMDS_Initialise(CPs_OutputModule* pModule, const CPs_FileInfo* pFileInf
 		CP_FAIL("Unable to initialise DirectSound");
 	}
 	
-	pContext->WaveFile.wFormatTag = WAVE_FORMAT_PCM;
-	
-	pContext->WaveFile.nChannels = pFileInfo->m_bStereo ? 2 : 1;
-	pContext->WaveFile.nSamplesPerSec = pFileInfo->m_iFreq_Hz;
-	pContext->WaveFile.wBitsPerSample = pFileInfo->m_b16bit ? 16 : 8;
-	pContext->WaveFile.nBlockAlign = (pContext->WaveFile.nChannels * pContext->WaveFile.wBitsPerSample) >> 3;
-	pContext->WaveFile.nAvgBytesPerSec = pContext->WaveFile.nSamplesPerSec * pContext->WaveFile.nBlockAlign;
-	pContext->WaveFile.cbSize = 0;
-	
+	memset(&pContext->WaveFile, 0, sizeof(pContext->WaveFile));
+	pContext->WaveFile.Format.nChannels = pFileInfo->m_bStereo ? 2 : 1;
+	pContext->WaveFile.Format.nSamplesPerSec = pFileInfo->m_iFreq_Hz;
+	pContext->WaveFile.Format.wBitsPerSample = (WORD)pFileInfo->m_iBitsPerSample;
+	pContext->WaveFile.Format.nBlockAlign = (pContext->WaveFile.Format.nChannels * pContext->WaveFile.Format.wBitsPerSample) >> 3;
+	pContext->WaveFile.Format.nAvgBytesPerSec = pContext->WaveFile.Format.nSamplesPerSec * pContext->WaveFile.Format.nBlockAlign;
+
+	if (pFileInfo->m_iBitsPerSample > 16)
+	{
+		/* 24-in-32 WAVEFORMATEXTENSIBLE - some driver stacks (this device's
+		 * included) don't handle legacy packed >16-bit WAVEFORMATEX cleanly,
+		 * producing audible noise; the extensible form is the broadly-supported
+		 * way to advertise a >16-bit stream. Sample data is expected to be
+		 * left-justified 32-bit little-endian containers (see
+		 * FLAC__plugin_common__pack_pcm_signed_left_justified_32_little_endian
+		 * on the producer side). */
+		pContext->WaveFile.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+		pContext->WaveFile.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
+		pContext->WaveFile.Samples.wValidBitsPerSample = 24;
+		pContext->WaveFile.dwChannelMask = pContext->WaveFile.Format.nChannels == 2
+			? (SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT) : SPEAKER_FRONT_CENTER;
+		pContext->WaveFile.SubFormat = CPC_SUBFORMAT_PCM;
+	}
+	else
+	{
+		pContext->WaveFile.Format.wFormatTag = WAVE_FORMAT_PCM;
+		pContext->WaveFile.Format.cbSize = 0;
+	}
+
 	// Create sound buffer
 	memset(&dsbd, 0, sizeof(DSBUFFERDESC));
 	dsbd.dwSize = sizeof(DSBUFFERDESC);
 	dsbd.dwFlags = DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_GLOBALFOCUS | DSBCAPS_CTRLVOLUME;
 	dsbd.dwBufferBytes = CPC_OUTPUTBLOCKSIZE;
-	dsbd.lpwfxFormat = &pContext->WaveFile;
+	dsbd.lpwfxFormat = &pContext->WaveFile.Format;
 	hrRetVal = IDirectSound_CreateSoundBuffer(pContext->lpDirectSound,
 			   &dsbd,
 			   &(pContext->lpDSB),
@@ -335,11 +390,14 @@ void CPP_OMDS_RefillBuffers(CPs_OutputModule* pModule)
 		}
 		
 		// If there is EQ then apply it
+		// (the EQ implementation is hardwired to packed 16-bit stereo samples,
+		// see CIC_DECODESAMPLE_LEFT/RIGHT in CPI_Equaliser_Basic.c - running it
+		// over 8-bit or 24-bit data would corrupt the audio, so just skip it there)
 		{
 			// Note that the EQ module is initialised and uninitialsed by the engine
 			CPs_EqualiserModule* pEQModule = (CPs_EqualiserModule*)pModule->m_pEqualiser;
-			
-			if (RealLength)
+
+			if (RealLength && pContext->WaveFile.Format.wBitsPerSample == 16)
 				pEQModule->ApplyEQToBlock_Inplace(pEQModule, pbData + pContext->m_WriteCursor, RealLength);
 		}
 		
@@ -562,21 +620,26 @@ void CPP_OMDS_OnEQChanged(CPs_OutputModule* pModule)
 		memcpy(pbData, pContext->m_pShadowBuffer, dwLength);
 	
 	// Apply EQ from play to either the end or the write cursor
+	// (skipped for non-16-bit streams - see the comment on the other
+	// ApplyEQToBlock_Inplace call site in this file)
 	pEQModule = (CPs_EqualiserModule*)pModule->m_pEqualiser;
-	
-	if (pContext->m_WriteCursor > dwPlayPos)
+
+	if (pContext->WaveFile.Format.wBitsPerSample == 16)
 	{
-		// One block - from play pos to write cursor
-		if (pContext->m_WriteCursor != CPC_INVALIDCURSORPOS)
-			pEQModule->ApplyEQToBlock_Inplace(pEQModule, pbData + dwPlayPos, pContext->m_WriteCursor - dwPlayPos);
-	}
-	
-	else
-	{
-		// Two blocks - from play pos to end
-		// - and from start to write cursor
-		pEQModule->ApplyEQToBlock_Inplace(pEQModule, pbData + dwPlayPos, CPC_OUTPUTBLOCKSIZE - dwPlayPos);
-		pEQModule->ApplyEQToBlock_Inplace(pEQModule, pbData, pContext->m_WriteCursor);
+		if (pContext->m_WriteCursor > dwPlayPos)
+		{
+			// One block - from play pos to write cursor
+			if (pContext->m_WriteCursor != CPC_INVALIDCURSORPOS)
+				pEQModule->ApplyEQToBlock_Inplace(pEQModule, pbData + dwPlayPos, pContext->m_WriteCursor - dwPlayPos);
+		}
+
+		else
+		{
+			// Two blocks - from play pos to end
+			// - and from start to write cursor
+			pEQModule->ApplyEQToBlock_Inplace(pEQModule, pbData + dwPlayPos, CPC_OUTPUTBLOCKSIZE - dwPlayPos);
+			pEQModule->ApplyEQToBlock_Inplace(pEQModule, pbData, pContext->m_WriteCursor);
+		}
 	}
 	
 	// Unlock the buffer

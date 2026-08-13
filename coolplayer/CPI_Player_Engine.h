@@ -45,6 +45,7 @@ typedef struct __CPs_PlayerContext
 	int m_iOpenDevice_Freq_Hz;
 	BOOL m_bOpenDevice_Stereo;
 	BOOL m_bOpenDevice_16bit;
+	UINT m_iOpenDevice_BitsPerSample;
 	
 	CPs_EqualiserModule m_Equaliser;
 	

@@ -371,7 +371,7 @@ LRESULT CALLBACK exp_ListViewHookProc_Posted(int iCode, WPARAM wParam, LPARAM lP
 //
 //
 //
-void CPlaylistWindow_TrackStackMenu(iItem)
+void CPlaylistWindow_TrackStackMenu(int iItem)
 {
 	HWND hWndList;
 	POINT ptItem;

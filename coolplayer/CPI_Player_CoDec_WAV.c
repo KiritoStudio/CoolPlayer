@@ -216,6 +216,7 @@ BOOL CPP_OMWAV_OpenFile(CPs_CoDecModule* pModule, const char* pcFilename, DWORD 
 		pContext->m_FileInfo.m_iFreq_Hz = pFormat->wf.nSamplesPerSec;
 		pContext->m_FileInfo.m_bStereo = pFormat->wf.nChannels == 2 ? TRUE : FALSE;
 		pContext->m_FileInfo.m_b16bit = pFormat->wBitsPerSample == 16 ? TRUE : FALSE;
+		pContext->m_FileInfo.m_iBitsPerSample = pFormat->wBitsPerSample;
 		pContext->m_iBytesPerSecond = pContext->m_FileInfo.m_iFreq_Hz
 									  * (pContext->m_FileInfo.m_bStereo == TRUE ? 2 : 1)
 									  * (pContext->m_FileInfo.m_b16bit == TRUE ? 2 : 1);

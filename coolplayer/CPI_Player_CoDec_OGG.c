@@ -244,6 +244,7 @@ BOOL CPP_OMOGG_OpenFile(CPs_CoDecModule* pModule, const char* pcFilename, DWORD 
 		
 		// Load m_FileInfo
 		pContext->m_FileInfo.m_b16bit = TRUE; //?
+		pContext->m_FileInfo.m_iBitsPerSample = 16; /* this decoder always reads via ov_read() as 16-bit PCM (word=2) */
 		pContext->m_FileInfo.m_iBitRate_Kbs = ov_bitrate(&pContext->vf, -1) / 1000;
 		pContext->m_FileInfo.m_iFileLength_Secs = (int)ov_time_total(&pContext->vf, -1);
 		pContext->m_FileInfo.m_iFreq_Hz = pInfo->rate;

@@ -998,7 +998,7 @@ void    main_draw_controls_all(HWND hWnd)
 
 void    options_create(HWND hWnd)
 {
-	windows.dlg_options = DialogBox(GetModuleHandle(NULL), // handle to application instance
+	windows.dlg_options = (HWND) DialogBox(GetModuleHandle(NULL), // handle to application instance
 									MAKEINTRESOURCE(IDD_OPTIONS), // identifies dialog box template
 									hWnd, // handle to owner window
 									(DLGPROC) options_windowproc); // pointer to dialog box procedure

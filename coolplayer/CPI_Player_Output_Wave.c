@@ -117,7 +117,7 @@ void CPP_OMWV_Initialise(CPs_OutputModule* pModule, const CPs_FileInfo* pFileInf
 		waveformatex.wFormatTag = WAVE_FORMAT_PCM;
 		waveformatex.nChannels = pFileInfo->m_bStereo ? 2 : 1;
 		waveformatex.nSamplesPerSec = pFileInfo->m_iFreq_Hz;
-		waveformatex.wBitsPerSample = pFileInfo->m_b16bit ? 16 : 8;
+		waveformatex.wBitsPerSample = (WORD)pFileInfo->m_iBitsPerSample;
 		waveformatex.nBlockAlign = (waveformatex.nChannels * waveformatex.wBitsPerSample) >> 3;
 		waveformatex.nAvgBytesPerSec = waveformatex.nSamplesPerSec * waveformatex.nBlockAlign;
 		waveformatex.cbSize = 0;

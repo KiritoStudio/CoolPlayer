@@ -167,7 +167,7 @@ void CPP_OMFL_RefillBuffers(CPs_OutputModule* pModule)
 		
 		pModule->m_pCoDec->GetFileInfo(pModule->m_pCoDec, &pFileInfo);
 		rec_rate = pFileInfo.m_iFreq_Hz;
-		rec_bits = pFileInfo.m_b16bit == TRUE ? 16 : 8;
+		rec_bits = (int)pFileInfo.m_iBitsPerSample;
 		
 		// saving internet stream
 		

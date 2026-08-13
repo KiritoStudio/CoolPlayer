@@ -165,7 +165,8 @@ DWORD WINAPI CPI_Player__EngineEP(void* pCookie)
 							
 							if (FileInfo.m_iFreq_Hz != playercontext.m_iOpenDevice_Freq_Hz
 									|| FileInfo.m_bStereo != playercontext.m_bOpenDevice_Stereo
-									|| FileInfo.m_b16bit != playercontext.m_bOpenDevice_16bit)
+									|| FileInfo.m_b16bit != playercontext.m_bOpenDevice_16bit
+									|| FileInfo.m_iBitsPerSample != playercontext.m_iOpenDevice_BitsPerSample)
 							{
 								CP_TRACE0("Stream format changes - clearing stream");
 								EmptyOutputStream(&playercontext);
@@ -496,6 +497,7 @@ void StartPlay(CPs_CoDecModule* pCoDec, CPs_PlayerContext* pContext)
 	pContext->m_iOpenDevice_Freq_Hz = FileInfo.m_iFreq_Hz;
 	pContext->m_bOpenDevice_Stereo = FileInfo.m_bStereo;
 	pContext->m_bOpenDevice_16bit = FileInfo.m_b16bit;
+	pContext->m_iOpenDevice_BitsPerSample = FileInfo.m_iBitsPerSample;
 	
 	// Get module to initialise itself
 	pContext->m_Equaliser.Initialise(&pContext->m_Equaliser, FileInfo.m_iFreq_Hz, FileInfo.m_b16bit);

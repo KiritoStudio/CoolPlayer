@@ -234,7 +234,8 @@ typedef struct _CPs_FileInfo
 	UINT m_iBitRate_Kbs;
 	UINT m_iFreq_Hz;
 	BOOL m_bStereo;
-	BOOL m_b16bit;
+	BOOL m_b16bit;         /* kept for the equaliser, which is hardwired to 16-bit packed samples (see CPI_Equaliser_Basic.c) */
+	UINT m_iBitsPerSample; /* real sample depth (8/16/24); used by the output backends */
 } CPs_FileInfo;
 
 //

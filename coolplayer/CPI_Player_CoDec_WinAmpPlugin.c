@@ -175,7 +175,9 @@ int CP_OutPI_Open(int samplerate, int numchannels, int bitspersamp, int bufferle
 	// bufferlenms and prebufferms must be in ms. 0 to use defaults.
 	// prebufferms must be <= bufferlenms
 	
-	if (bitspersamp != 8 && bitspersamp != 16)
+	/* 32 here is the plugin layer's signal for "24-in-32 WAVEFORMATEXTENSIBLE"
+	 * (see CPI_Player_Output_DirectSound.c) - not a request for real 32-bit audio */
+	if (bitspersamp != 8 && bitspersamp != 16 && bitspersamp != 24 && bitspersamp != 32)
 	{
 		CP_TRACE0("Inappropriate stream type");
 		return -1;
@@ -196,6 +198,7 @@ int CP_OutPI_Open(int samplerate, int numchannels, int bitspersamp, int bufferle
 		glb_OutputData.m_FileInfo.m_iFreq_Hz = samplerate;
 		glb_OutputData.m_FileInfo.m_bStereo = (numchannels > 1) ? TRUE : FALSE;
 		glb_OutputData.m_FileInfo.m_b16bit = (bitspersamp == 16) ? TRUE : FALSE;
+		glb_OutputData.m_FileInfo.m_iBitsPerSample = (UINT)bitspersamp;
 		
 		LeaveCriticalSection(&glb_OutputData.m_csGlobal);
 		
@@ -258,8 +261,8 @@ int CP_OutPI_Write(char *buf, int len)
 	// Update the current time
 	{
 		int iBytesPerSample = (glb_OutputData.m_FileInfo.m_bStereo ? 2 : 1)
-							  << (glb_OutputData.m_FileInfo.m_b16bit ? 1 : 0);
-		                      
+							  * (glb_OutputData.m_FileInfo.m_iBitsPerSample / 8);
+
 		glb_OutputData.m_iCurrentTime_ms += ((len / iBytesPerSample) * 1000) / glb_OutputData.m_FileInfo.m_iFreq_Hz;
 	}
 	

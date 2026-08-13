@@ -26,6 +26,7 @@
 # include "global.h"
 
 # include <stdio.h>
+# include <stdlib.h>	/* abort(), referenced by the assert() macro expansion */
 
 # ifdef HAVE_ASSERT_H
 #  include <assert.h>

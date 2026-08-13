@@ -40,6 +40,7 @@ char* __cdecl strstr(const char*, const char*);
 int __cdecl _stricmp(const char*, const char*);
 int __cdecl _strnicmp(const char*, const char*, size_t);
 int __cdecl tolower(int);
+#define strnicmp _strnicmp
 #endif
 #if 0
 char* __cdecl strncat(char*, const char*, size_t);
