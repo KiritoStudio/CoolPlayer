@@ -66,6 +66,7 @@ static HWND g_hSeek = NULL;
 static HWND g_hVol = NULL;
 static HWND g_hList = NULL;
 static HWND g_hStatus = NULL;
+static WNDPROC g_pfnStatusOrigProc = NULL;
 static HFONT g_hFontUI = NULL;
 
 static BOOL g_bSeekDragging = FALSE;
@@ -83,6 +84,7 @@ static BOOL g_fmtValid = FALSE;
 // Forward declarations
 
 static LRESULT CALLBACK FooPanelProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+static LRESULT CALLBACK StatusBarSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 static void CreateControls(HWND hPanel);
 static void LayoutControls(void);
 static void RebuildPlaylistRows(void);
@@ -406,6 +408,63 @@ static void OnColumnClick(int iColumn)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Status bar flicker fix
+//
+// msctls_statusbar32 (STATUSCLASSNAME) erases its whole client area as a
+// separate step before redrawing text on every SB_SETTEXT, and on this
+// hardware's GDI stack that shows up as a visible flash even though it's
+// only one update per second (already cut down from three - see
+// main_draw_bitrate/frequency in main.c). Just suppressing WM_ERASEBKGND
+// was tried first and made things worse: without the erase, text from the
+// previous frame that isn't covered by the new text's glyph footprint (a
+// shorter string, or "Stopped." vs a much longer "Playing | ..." line)
+// stays on screen and visibly ghosts/overlaps the new text.
+//
+// The correct fix is real double buffering: let the control's own default
+// paint logic erase-and-draw as normal, just redirected into an off-screen
+// memory bitmap first, then copy the finished result to the screen in one
+// BitBlt. The user only ever sees a complete frame - never the intermediate
+// erased-but-not-yet-texted state that caused the flash, and never stale
+// pixels the new text didn't cover. WM_PRINTCLIENT is the standard way to
+// ask a common control to render its current appearance into an arbitrary
+// HDC; comctl32's status bar has supported it since Windows 2000/XP.
+static LRESULT CALLBACK StatusBarSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	if (uMsg == WM_PAINT)
+	{
+		PAINTSTRUCT ps;
+		HDC hdcReal;
+		HDC hdcMem;
+		HBITMAP hbmMem, hbmOld;
+		RECT rc;
+
+		hdcReal = BeginPaint(hWnd, &ps);
+		GetClientRect(hWnd, &rc);
+
+		hdcMem = CreateCompatibleDC(hdcReal);
+		hbmMem = CreateCompatibleBitmap(hdcReal, rc.right, rc.bottom);
+		hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
+
+		CallWindowProc(g_pfnStatusOrigProc, hWnd, WM_ERASEBKGND, (WPARAM)hdcMem, 0);
+		CallWindowProc(g_pfnStatusOrigProc, hWnd, WM_PRINTCLIENT, (WPARAM)hdcMem, PRF_CLIENT);
+
+		BitBlt(hdcReal, 0, 0, rc.right, rc.bottom, hdcMem, 0, 0, SRCCOPY);
+
+		SelectObject(hdcMem, hbmOld);
+		DeleteObject(hbmMem);
+		DeleteDC(hdcMem);
+
+		EndPaint(hWnd, &ps);
+		return 0;
+	}
+
+	if (uMsg == WM_ERASEBKGND)
+		return 1;
+
+	return CallWindowProc(g_pfnStatusOrigProc, hWnd, uMsg, wParam, lParam);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Control creation and layout
 
 static void CreateControls(HWND hPanel)
@@ -468,6 +527,8 @@ static void CreateControls(HWND hPanel)
 	g_hStatus = CreateWindowEx(0, STATUSCLASSNAME, "Stopped.",
 							   WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
 							   0, 0, 10, 10, hPanel, (HMENU)(INT_PTR)IDC_FOO_STATUS, hInst, NULL);
+
+	g_pfnStatusOrigProc = (WNDPROC)SetWindowLongPtr(g_hStatus, GWLP_WNDPROC, (LONG_PTR)StatusBarSubclassProc);
 
 	// The standard message font (Segoe UI 9pt on Win8.x) for every control
 	memset(&ncm, 0, sizeof(ncm));

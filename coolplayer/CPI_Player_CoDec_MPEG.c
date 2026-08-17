@@ -39,6 +39,18 @@
 # define SAMPLE_DEPTH 16
 # define scale(x, y) dither((x), (y))
 
+// libmad's bitstream reader can look a handful of bytes past bufend while
+// scanning for the next frame sync, even when there's no more real data -
+// per libmad's own documented contract, every buffer handed to
+// mad_stream_buffer() must have MAD_BUFFER_GUARD bytes of slack physically
+// allocated past the real data (see mad/stream.h). The buffers below never
+// had that slack, so that lookahead read out-of-bounds; on failure it reads
+// (and occasionally corrupts, via whatever mis-decoded "frame" results)
+// whatever heap memory happens to sit right after the buffer, which then
+// shows up later as an unrelated-looking heap crash.
+# define CPC_MP3_SCANBUFFER_SIZE 8192
+# define CPC_MP3_INPUTBUFFER_SIZE 40000
+
 struct xing
 {
 	long flags;
@@ -84,7 +96,7 @@ typedef struct
 	
 	CPs_FileInfo info;    /* stream info */
 	
-	unsigned char buffer[40000]; /* input stream buffer */
+	unsigned char buffer[CPC_MP3_INPUTBUFFER_SIZE + MAD_BUFFER_GUARD]; /* input stream buffer - the trailing MAD_BUFFER_GUARD bytes are never written with real data, they only exist as safety slack for libmad's lookahead */
 	unsigned int buflen;   /* input stream buffer length */
 } CPs_CoDec_MPEG;
 
@@ -163,24 +175,24 @@ int scan_header(CPs_InStream* pInStream, struct mad_header *header, struct xing 
 	struct mad_stream stream;
 	
 	struct mad_frame frame;
-	unsigned char buffer[8192];
+	unsigned char buffer[CPC_MP3_SCANBUFFER_SIZE + MAD_BUFFER_GUARD];
 	unsigned int buflen = 0;
 	int count = 0, result = 0;
-	
+
 	mad_stream_init(&stream);
 	mad_frame_init(&frame);
-	
+
 	if (xing)
 		xing->flags = 0;
-		
+
 	while (1)
 	{
-		if (buflen < sizeof(buffer))
+		if (buflen < CPC_MP3_SCANBUFFER_SIZE)
 		{
 			// DWORD bytes;
 			unsigned int bytes;
-			
-			if (pInStream->Read(pInStream, buffer + buflen, sizeof(buffer) - buflen, &bytes) == FALSE
+
+			if (pInStream->Read(pInStream, buffer + buflen, CPC_MP3_SCANBUFFER_SIZE - buflen, &bytes) == FALSE
 					|| bytes == 0)
 			{
 				result = -1;
@@ -603,7 +615,7 @@ void CPP_OMMP3_Seek(CPs_CoDecModule* pModule, int const numer, int const denom)
 	
 	context->m_pInStream->Seek(context->m_pInStream, (LONG)(context->size * fraction));
 	
-	if (context->m_pInStream->Read(context->m_pInStream, context->buffer, sizeof(context->buffer), &context->buflen) == FALSE)
+	if (context->m_pInStream->Read(context->m_pInStream, context->buffer, CPC_MP3_INPUTBUFFER_SIZE, &context->buflen) == FALSE)
 		context->buflen = 0;
 		
 	mad_stream_buffer(&context->stream, context->buffer, context->buflen);
@@ -704,7 +716,7 @@ BOOL CPP_OMMP3_GetPCMBlock(CPs_CoDecModule* pModule, void *block, DWORD *size)
 			
 			if (context->m_pInStream->Read(context->m_pInStream,
 										   context->buffer + context->buflen,
-										   sizeof(context->buffer) - context->buflen, &bytes) == FALSE
+										   CPC_MP3_INPUTBUFFER_SIZE - context->buflen, &bytes) == FALSE
 					|| bytes == 0)
 			{
 				return FALSE;

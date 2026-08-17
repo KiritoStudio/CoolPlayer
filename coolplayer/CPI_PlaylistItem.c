@@ -36,6 +36,10 @@ void CPLI_SetPath(CPs_PlaylistItem* pItem, const char* pcNewPath);
 void CPLI_ReadTag_ID3v1(CPs_PlaylistItem* pItem, HANDLE hFile);
 void CPLI_ReadTag_ID3v2(CPs_PlaylistItem* pItem, HANDLE hFile);
 void CPLI_ReadTag_OGG(CPs_PlaylistItem* pItem);
+void CPLI_OGG_DecodeString(char** ppcString, const char* pcNewValue);
+void CPLI_WideToAnsiString(char** ppcString, const WCHAR* pcWideValue);
+void CPLI_ReadTag_FLAC(CPs_PlaylistItem* pItem);
+void CPLI_FLAC_ParseVorbisComment(CPs_PlaylistItem* pItem, const unsigned char* pData, unsigned int uDataLength);
 void CPLI_WriteTag_ID3v1(CPs_PlaylistItem* pItem, HANDLE hFile);
 void CPLI_WriteTag_ID3v2(CPs_PlaylistItem* pItem, HANDLE hFile);
 void CPLI_WriteTag_OGG(CPs_PlaylistItem* pItem, HANDLE hFile);
@@ -423,7 +427,14 @@ void CPLI_ReadTag(CP_HPLAYLISTITEM hItem)
 	{
 		CPLI_ReadTag_OGG(pItem);
 	}
-	
+
+	// FLAC never carries ID3 tags - its metadata lives in a VORBIS_COMMENT
+	// block inside the FLAC container itself, so always read it natively.
+	if (stricmp(".flac", CPLI_GetExtension(hItem)) == 0)
+	{
+		CPLI_ReadTag_FLAC(pItem);
+	}
+
 	// Update interface
 	CPL_cb_OnItemUpdated(hItem);
 }
@@ -435,21 +446,81 @@ char* CPLI_ID3v2_DecodeString(const BYTE* pSourceText, const int iTagDataSize)
 {
 	int iStringLength;
 	char* pcDestString;
-	
-	if (pSourceText[0] == '\0')
+
+	if (iTagDataSize < 1)
+		return NULL;
+
+	// ID3v2 text frames start with an encoding byte: 0=ISO-8859-1, 1=UTF-16
+	// with BOM, 2=UTF-16BE without BOM (rare), 3=UTF-8 (ID3v2.4, but some
+	// v2.3 taggers use it too - especially for CJK text, since ISO-8859-1
+	// can't represent it at all). The old code only handled 0, so any
+	// modern tagger writing Japanese/Chinese text (which has to use one of
+	// the other three) showed up as NULL -> "?" in the UI.
+	if (pSourceText[0] == 0x00)
 	{
 		iStringLength = iTagDataSize - 1;
 		pcDestString = malloc(iStringLength + 1);
 		memcpy(pcDestString, pSourceText + 1, iStringLength);
 		pcDestString[iStringLength] = 0;
 	}
-	
+
+	else if (pSourceText[0] == 0x03)
+	{
+		int iTextLength = iTagDataSize - 1;
+		char* pcUtf8 = malloc(iTextLength + 1);
+
+		memcpy(pcUtf8, pSourceText + 1, iTextLength);
+		pcUtf8[iTextLength] = '\0';
+
+		pcDestString = NULL;
+		CPLI_OGG_DecodeString(&pcDestString, pcUtf8);
+
+		free(pcUtf8);
+	}
+
+	else if (pSourceText[0] == 0x01 || pSourceText[0] == 0x02)
+	{
+		const BYTE* pTextStart = pSourceText + 1;
+		int iTextByteLength = iTagDataSize - 1;
+		BOOL bBigEndian = (pSourceText[0] == 0x02);
+		WCHAR* pWideValue;
+		int iWideCount;
+		int iCharIDX;
+
+		if (pSourceText[0] == 0x01 && iTextByteLength >= 2)
+		{
+			if (pTextStart[0] == 0xFE && pTextStart[1] == 0xFF)
+				bBigEndian = TRUE;
+
+			pTextStart += 2;
+			iTextByteLength -= 2;
+		}
+
+		iWideCount = iTextByteLength / 2;
+		pWideValue = malloc((iWideCount + 1) * sizeof(WCHAR));
+
+		for (iCharIDX = 0; iCharIDX < iWideCount; iCharIDX++)
+		{
+			BYTE cByte0 = pTextStart[iCharIDX * 2];
+			BYTE cByte1 = pTextStart[iCharIDX * 2 + 1];
+
+			pWideValue[iCharIDX] = bBigEndian ? ((cByte0 << 8) | cByte1) : (cByte0 | (cByte1 << 8));
+		}
+
+		pWideValue[iWideCount] = 0;
+
+		pcDestString = NULL;
+		CPLI_WideToAnsiString(&pcDestString, pWideValue);
+
+		free(pWideValue);
+	}
+
 	else
 	{
 		CP_TRACE0("ID3v2 Unknown encoding");
 		pcDestString = NULL;
 	}
-	
+
 	return pcDestString;
 }
 
@@ -1371,47 +1442,66 @@ void CPLI_CalculateLength_MP3(CPs_PlaylistItem* pItem)
 	BOOL bFoundFrameHeader;
 	int iBitRate;
 	DWORD dwFileSize;
+	DWORD dwAudioDataSize;
 	int iMPEG_version;
 	int iLayer;
 	BOOL bMono;
 	unsigned int iVBRHeader;
-	
+	CIs_ID3v2Tag id3Header;
+	DWORD dwID3BytesRead;
+	DWORD dwTagEnd;
+
 	// - Try to open the file
 	hFile = CreateFile(pItem->m_pcPath, GENERIC_READ,
 					   FILE_SHARE_READ, 0,
 					   OPEN_EXISTING, 0, 0);
-	dwFileSize = GetFileSize(hFile, NULL);
-	
+
 	// Cannot open - fail silently
-	
+
 	if (hFile == INVALID_HANDLE_VALUE)
 		return;
-		
-	// Read the first 64K of the file (that should contain the first frame header!)
-	ReadFile(hFile, pbBuffer, sizeof(pbBuffer), &dwBufferSize, NULL);
-	
-	CloseHandle(hFile);
-	
-	iBufferCursor = 0;
-	
-	// Skip over a any ID3v2 tag
+
+	dwFileSize = GetFileSize(hFile, NULL);
+
+	// Peek at just the ID3v2 header (if any) to find the real tag size, and
+	// seek past it in the file before reading the frame-search buffer.
+	// Embedded cover art (APIC frames) routinely pushes ID3v2 tags well
+	// past 32K, so assuming the tag and the first MPEG frame both fit in
+	// one fixed-size read from byte 0 (the old approach) means the frame
+	// search buffer never actually contains any audio data for files with
+	// a large embedded image - the search then always comes up empty and
+	// the length is silently left unset ("?" in the UI).
+	dwTagEnd = 0;
+
+	ReadFile(hFile, &id3Header, sizeof(id3Header), &dwID3BytesRead, NULL);
+
+	if (dwID3BytesRead == sizeof(id3Header) && memcmp(id3Header.m_cTAG, "ID3", 3) == 0)
 	{
-		CIs_ID3v2Tag* pHeader = (CIs_ID3v2Tag*)(pbBuffer + iBufferCursor);
-		
-		if (memcmp(pHeader->m_cTAG, "ID3", 3) == 0)
-		{
-			iBufferCursor += (pHeader->m_cSize_Encoded[0] << 21)
-							 | (pHeader->m_cSize_Encoded[1] << 14)
-							 | (pHeader->m_cSize_Encoded[2] << 7)
-							 | pHeader->m_cSize_Encoded[3];
-			iBufferCursor += sizeof(CIs_ID3v2Tag); // count the header
-		}
+		dwTagEnd = sizeof(id3Header)
+				   + ((id3Header.m_cSize_Encoded[0] << 21)
+					  | (id3Header.m_cSize_Encoded[1] << 14)
+					  | (id3Header.m_cSize_Encoded[2] << 7)
+					  | id3Header.m_cSize_Encoded[3]);
 	}
-	
-	// Seek to the start of the first frame
+
+	SetFilePointer(hFile, dwTagEnd, NULL, FILE_BEGIN);
+
+	// Read a chunk of the file starting right after the tag (that should contain the first frame header!)
+	ReadFile(hFile, pbBuffer, sizeof(pbBuffer), &dwBufferSize, NULL);
+
+	CloseHandle(hFile);
+
+	dwAudioDataSize = (dwFileSize > dwTagEnd) ? (dwFileSize - dwTagEnd) : 0;
+
+	iBufferCursor = 0;
+
+	// Seek to the start of the first frame. Written as addition rather than
+	// "dwBufferSize - 4" so a near-empty read (e.g. a corrupt tag whose
+	// declared size seeks past EOF) can't underflow the unsigned bound and
+	// walk this loop off the end of pbBuffer.
 	bFoundFrameHeader = FALSE;
-	
-	while (iBufferCursor < (dwBufferSize - 4))
+
+	while ((iBufferCursor + 4) < dwBufferSize)
 	{
 		if (pbBuffer[iBufferCursor] == 0xFF
 				&& (pbBuffer[iBufferCursor+1] & 0xE0) == 0xE0)
@@ -1509,7 +1599,7 @@ void CPLI_CalculateLength_MP3(CPs_PlaylistItem* pItem)
 		iBitRate = aryBitRates[2-iMPEG_version][iLayer-1][pbBuffer[iBufferCursor+2] >> 4];
 		
 		if (iBitRate)
-			CPLI_DecodeLength(pItem, (dwFileSize*8) / (iBitRate*1000));
+			CPLI_DecodeLength(pItem, (dwAudioDataSize*8) / (iBitRate*1000));
 	}
 }
 
@@ -1742,16 +1832,83 @@ void CPLI_OGG_SkipOverTab(FILE* pFile)
 //
 void CPLI_OGG_DecodeString(char** ppcString, const char* pcNewValue)
 {
-	int iStringLength;
-	
+	int iWideLength;
+	WCHAR* pWideValue;
+
+	// Vorbis comment values (both OGG and FLAC use this same tag format) are
+	// always UTF-8 per spec, but this is an ANSI build that displays text via
+	// *A APIs (DrawTextA / ListView_SetItemText) using the system codepage -
+	// so raw UTF-8 bytes render as mojibake for any non-ASCII tag (Chinese
+	// artist/album names etc). Convert UTF-8 -> UTF-16, then hand off to
+	// CPLI_WideToAnsiString for the UTF-16 -> local ANSI codepage step
+	// (shared with the ID3v2 UTF-16/UTF-8 frame decoding).
+	iWideLength = MultiByteToWideChar(CP_UTF8, 0, pcNewValue, -1, NULL, 0);
+
+	if (iWideLength <= 0)
+	{
+		if (*ppcString)
+			free(*ppcString);
+
+		*ppcString = malloc(1);
+		(*ppcString)[0] = '\0';
+		return;
+	}
+
+	pWideValue = malloc(iWideLength * sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, pcNewValue, -1, pWideValue, iWideLength);
+
+	CPLI_WideToAnsiString(ppcString, pWideValue);
+
+	free(pWideValue);
+}
+
+//
+//
+//
+void CPLI_WideToAnsiString(char** ppcString, const WCHAR* pcWideValue)
+{
+	WCHAR* pWideCopy;
+	int iCharCount;
+	int iCharIDX;
+	int iAnsiLength;
+
 	if (*ppcString)
 		free(*ppcString);
-		
-	iStringLength = strlen(pcNewValue);
-	
-	*ppcString = malloc(iStringLength + 1);
-	
-	memcpy(*ppcString, pcNewValue, iStringLength + 1);
+
+	for (iCharCount = 0; pcWideValue[iCharCount]; iCharCount++)
+		;
+
+	// Work on a copy so we can remap characters without mutating the
+	// caller's buffer.
+	pWideCopy = malloc((iCharCount + 1) * sizeof(WCHAR));
+	memcpy(pWideCopy, pcWideValue, (iCharCount + 1) * sizeof(WCHAR));
+
+	// The Chinese ANSI codepage (GBK/936) has no code point for the Japanese
+	// katakana middle dot used as a name/title separator (U+30FB, and its
+	// halfwidth form U+FF65) - WideCharToMultiByte would silently drop it to
+	// a literal '?'. Remap it to the Chinese middle dot U+00B7, which GBK
+	// does have and which is used for the exact same purpose: separating
+	// the transliterated syllables of a foreign name written in Chinese.
+	for (iCharIDX = 0; iCharIDX < iCharCount; iCharIDX++)
+	{
+		if (pWideCopy[iCharIDX] == 0x30FB || pWideCopy[iCharIDX] == 0xFF65)
+			pWideCopy[iCharIDX] = 0x00B7;
+	}
+
+	iAnsiLength = WideCharToMultiByte(CP_ACP, 0, pWideCopy, -1, NULL, 0, NULL, NULL);
+
+	if (iAnsiLength <= 0)
+	{
+		free(pWideCopy);
+		*ppcString = malloc(1);
+		(*ppcString)[0] = '\0';
+		return;
+	}
+
+	*ppcString = malloc(iAnsiLength);
+	WideCharToMultiByte(CP_ACP, 0, pWideCopy, -1, *ppcString, iAnsiLength, NULL, NULL);
+
+	free(pWideCopy);
 }
 
 //
@@ -1859,7 +2016,204 @@ bottom_loop:
 	}
 	
 	ov_clear(&vorbisfileinfo);
-	
+
+	fclose(hFile);
+}
+
+//
+// Reads a little-endian uint32 out of a FLAC VORBIS_COMMENT block buffer,
+// bounds-checked against the block length (blocks can be truncated/corrupt).
+//
+BOOL CPLI_FLAC_ReadUInt32LE(const unsigned char* pData, unsigned int uDataLength, unsigned int uOffset, unsigned int* puValue)
+{
+	if (uOffset + 4 > uDataLength)
+		return FALSE;
+
+	*puValue = pData[uOffset] | (pData[uOffset+1] << 8) | (pData[uOffset+2] << 16) | (pData[uOffset+3] << 24);
+	return TRUE;
+}
+
+//
+// Parses the contents of a FLAC VORBIS_COMMENT metadata block. This is the
+// same "vendor string + FIELD=value list" layout as an Ogg Vorbis comment
+// header (just without the trailing framing bit), so the field dispatch
+// mirrors CPLI_ReadTag_OGG above.
+//
+void CPLI_FLAC_ParseVorbisComment(CPs_PlaylistItem* pItem, const unsigned char* pData, unsigned int uDataLength)
+{
+	unsigned int uOffset = 0;
+	unsigned int uVendorLength;
+	unsigned int uCommentCount;
+	unsigned int uCommentIDX;
+
+	if (!CPLI_FLAC_ReadUInt32LE(pData, uDataLength, uOffset, &uVendorLength))
+		return;
+
+	uOffset += 4 + uVendorLength;
+
+	if (!CPLI_FLAC_ReadUInt32LE(pData, uDataLength, uOffset, &uCommentCount))
+		return;
+
+	uOffset += 4;
+
+	for (uCommentIDX = 0; uCommentIDX < uCommentCount; uCommentIDX++)
+	{
+		unsigned int uCommentLength;
+		char* cTag;
+		char* cValue;
+		unsigned int i;
+		int iEqualsPos;
+
+		if (!CPLI_FLAC_ReadUInt32LE(pData, uDataLength, uOffset, &uCommentLength))
+			break;
+
+		uOffset += 4;
+
+		if (uOffset + uCommentLength > uDataLength)
+			break;
+
+		cTag = malloc(uCommentLength + 1);
+		cValue = malloc(uCommentLength + 1);
+
+		iEqualsPos = -1;
+
+		for (i = 0; i < uCommentLength; i++)
+		{
+			if (pData[uOffset + i] == '=')
+			{
+				iEqualsPos = (int)i;
+				break;
+			}
+		}
+
+		if (iEqualsPos >= 0)
+		{
+			memcpy(cTag, pData + uOffset, iEqualsPos);
+			cTag[iEqualsPos] = '\0';
+
+			memcpy(cValue, pData + uOffset + iEqualsPos + 1, uCommentLength - iEqualsPos - 1);
+			cValue[uCommentLength - iEqualsPos - 1] = '\0';
+
+			if (stricmp(cTag, "TITLE") == 0)
+				CPLI_OGG_DecodeString(&pItem->m_pcTrackName, cValue);
+			else if (stricmp(cTag, "ARTIST") == 0)
+				CPLI_OGG_DecodeString(&pItem->m_pcArtist, cValue);
+			else if (stricmp(cTag, "ALBUM") == 0)
+				CPLI_OGG_DecodeString(&pItem->m_pcAlbum, cValue);
+			else if (stricmp(cTag, "TRACKNUMBER") == 0)
+			{
+				CPLI_OGG_DecodeString(&pItem->m_pcTrackNum_AsText, cValue);
+				pItem->m_cTrackNum = (unsigned char)atoi(pItem->m_pcTrackNum_AsText);
+			}
+
+			else if (stricmp(cTag, "GENRE") == 0)
+			{
+				// Search for this genre among the ID3v1 genres (don't read it if we cannot find it)
+				int iGenreIDX;
+
+				for (iGenreIDX = 0; iGenreIDX < CIC_NUMGENRES; iGenreIDX++)
+				{
+					if (stricmp(cValue, glb_pcGenres[iGenreIDX]) == 0)
+					{
+						pItem->m_cGenre = (unsigned char)iGenreIDX;
+						break;
+					}
+				}
+			}
+		}
+
+		free(cTag);
+		free(cValue);
+
+		uOffset += uCommentLength;
+	}
+}
+
+//
+// Reads track length and Artist/Album/Title/TrackNumber/Genre directly out
+// of a FLAC file's own metadata blocks (STREAMINFO + VORBIS_COMMENT).
+// FLAC never carries ID3 tags, so this is the only source of that info -
+// without it these fields stay NULL and the playlist view falls back to "?".
+//
+void CPLI_ReadTag_FLAC(CPs_PlaylistItem* pItem)
+{
+	FILE* hFile;
+	unsigned char cMagic[4];
+	BOOL bLastBlock;
+
+	hFile = fopen(pItem->m_pcPath, "rb");
+
+	if (hFile == NULL)
+		return;
+
+	if (fread(cMagic, 1, 4, hFile) != 4 || memcmp(cMagic, "fLaC", 4) != 0)
+	{
+		fclose(hFile);
+		return;
+	}
+
+	bLastBlock = FALSE;
+
+	while (!bLastBlock)
+	{
+		unsigned char cBlockHeader[4];
+		unsigned char cBlockType;
+		unsigned int uBlockLength;
+
+		if (fread(cBlockHeader, 1, 4, hFile) != 4)
+			break;
+
+		bLastBlock = (cBlockHeader[0] & 0x80) != 0;
+		cBlockType = cBlockHeader[0] & 0x7F;
+		uBlockLength = (cBlockHeader[1] << 16) | (cBlockHeader[2] << 8) | cBlockHeader[3];
+
+		if (cBlockType == 0) // STREAMINFO
+		{
+			unsigned char cStreamInfo[34];
+
+			if (uBlockLength < sizeof(cStreamInfo) || fread(cStreamInfo, 1, sizeof(cStreamInfo), hFile) != sizeof(cStreamInfo))
+				break;
+
+			{
+				unsigned long uSampleRate = ((unsigned long)cStreamInfo[10] << 12) | ((unsigned long)cStreamInfo[11] << 4) | (cStreamInfo[12] >> 4);
+
+				// Total samples is a 36-bit field (bytes 13-17); we only keep the low 32 bits
+				// (bytes 14-17), which already covers tracks up to ~27 hours at 44.1kHz.
+				unsigned long uTotalSamples = ((unsigned long)cStreamInfo[14] << 24)
+						| ((unsigned long)cStreamInfo[15] << 16)
+						| ((unsigned long)cStreamInfo[16] << 8)
+						| cStreamInfo[17];
+
+				if (uSampleRate > 0)
+					CPLI_DecodeLength(pItem, (unsigned int)(uTotalSamples / uSampleRate));
+			}
+
+			// Skip any extra bytes beyond the fixed 34-byte STREAMINFO structure (there shouldn't be any)
+			if (uBlockLength > sizeof(cStreamInfo))
+				fseek(hFile, uBlockLength - sizeof(cStreamInfo), SEEK_CUR);
+		}
+
+		else if (cBlockType == 4) // VORBIS_COMMENT
+		{
+			unsigned char* pBlockData = malloc(uBlockLength);
+
+			if (pBlockData == NULL || fread(pBlockData, 1, uBlockLength, hFile) != uBlockLength)
+			{
+				if (pBlockData)
+					free(pBlockData);
+				break;
+			}
+
+			CPLI_FLAC_ParseVorbisComment(pItem, pBlockData, uBlockLength);
+			free(pBlockData);
+		}
+
+		else
+		{
+			fseek(hFile, uBlockLength, SEEK_CUR);
+		}
+	}
+
 	fclose(hFile);
 }
 

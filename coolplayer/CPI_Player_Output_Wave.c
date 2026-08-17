@@ -83,6 +83,7 @@ void CPI_Player_Output_Initialise_WaveMapper(CPs_OutputModule* pModule)
 	pModule->Flush = CPP_OMWV_Flush;
 	pModule->OnEQChanged = CPP_OMWV_OnEQChanged;
 	pModule->SetInternalVolume = CPP_OMWV_SetInternalVolume;
+	pModule->GetOutputLag_ms = NULL;
 	pModule->m_pModuleCookie = NULL;
 	pModule->m_pcModuleName = "Cooler Wave mapper";
 	pModule->m_pCoDec = NULL;

@@ -330,12 +330,21 @@ void	main_draw_title(HWND hWnd)
 
 void	main_draw_bitrate(HWND hWnd)
 {
-	ModernUI_UpdateTransport();
+	// Deliberately a no-op. This and main_draw_frequency() are always called
+	// back-to-back with main_draw_time() (see CPI_Player_Callbacks.c) for
+	// what's logically a single per-second update, but each one used to
+	// fully rebuild and repaint the status bar via ModernUI_UpdateTransport()
+	// on its own - three full repaints of the same content every second,
+	// which is what showed up as the status bar flickering during playback.
+	// The bitrate/frequency text ModernUI actually displays comes from
+	// ModernUI_OnStreamInfo() (called separately, right after this in
+	// CPI_Player_cb_OnStreamInfo), not from anything this function used to
+	// do, so trimming its repaint doesn't lose any update.
 }
 
 void	main_draw_frequency(HWND hWnd)
 {
-	ModernUI_UpdateTransport();
+	// See main_draw_bitrate() above.
 }
 
 void    main_set_eq(void)

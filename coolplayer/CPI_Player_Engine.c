@@ -410,7 +410,21 @@ void UpdateProgress(CPs_PlayerContext* pContext)
 	// If the file offset (in secs) has changed resend some notifies
 	
 	if (pContext->m_bOutputActive == TRUE)
+	{
 		iCurrentTime_Secs = pContext->m_pCurrentOutputModule->m_pCoDec->GetCurrentPos_secs(pContext->m_pCurrentOutputModule->m_pCoDec);
+
+		// CoDec-side positions count data as "played" the moment it is pulled
+		// from the decoder, which with a large output buffer can be more than
+		// a second before it is audible - compensate with the output module's
+		// queued-but-not-yet-audible time (see CPP_OMDS_GetOutputLag_ms)
+		if (pContext->m_pCurrentOutputModule->GetOutputLag_ms)
+		{
+			iCurrentTime_Secs -= pContext->m_pCurrentOutputModule->GetOutputLag_ms(pContext->m_pCurrentOutputModule) / 1000;
+
+			if (iCurrentTime_Secs < 0)
+				iCurrentTime_Secs = 0;
+		}
+	}
 	else
 		iCurrentTime_Secs = 0;
 		

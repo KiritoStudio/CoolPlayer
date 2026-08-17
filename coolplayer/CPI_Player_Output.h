@@ -45,6 +45,7 @@ typedef BOOL (*pfnOP_IsOutputComplete)(CP_HOUTPUTMODULE pModule);
 typedef void (*pfnOP_Flush)(CP_HOUTPUTMODULE pModule);
 typedef void (*pfnOP_OnEQChanged)(CP_HOUTPUTMODULE pModule);
 typedef void (*pfnOP_SetInternalVolume)(CP_HOUTPUTMODULE pModule, const int iNewInternalVolume);
+typedef int (*pfnOP_GetOutputLag_ms)(CP_HOUTPUTMODULE pModule);
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -63,7 +64,8 @@ typedef struct _CPs_OutputModule
 	pfnOP_Flush Flush;
 	pfnOP_OnEQChanged OnEQChanged;
 	pfnOP_SetInternalVolume SetInternalVolume;
-	
+	pfnOP_GetOutputLag_ms GetOutputLag_ms; // May be NULL - ms of audio handed to the device but not audible yet
+
 	// Public variables
 	CPs_CoDecModule* m_pCoDec;  // NULL when the stream is exhausted
 	HANDLE m_evtBlockFree;

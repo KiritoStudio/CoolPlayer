@@ -138,7 +138,18 @@ typedef struct __CPs_CoDec_WinAmpPlugin
 ////////////////////////////////////////////////////////////////////////////////
 
 
-#define CIC_CIRCLE_DATABUFFER_SIZE  0x10000  //64Kb
+// WinAmp-plugin-backed formats (FLAC via in_flac.dll) are the only codecs that
+// decode on their own producer thread into this circle buffer - native codecs
+// (MP3/OGG/WAV) decode synchronously inside GetPCMBlock itself and never touch
+// this path. At the old 64KB (~0.37s at 44.1kHz/16-bit stereo) this buffer gave
+// almost no slack against ordinary OS scheduling jitter on this hardware: any
+// brief stall in the plugin's decode thread (disk I/O hiccup, another process
+// getting a timeslice, etc) drains it, and DirectSound's circular hardware
+// buffer then keeps looping and replays whatever stale audio was physically
+// still sitting in its own buffer from an earlier lap - audible as a sudden
+// "skip"/jump rather than a clean pause. Bumped to 512KB (~2.9s) for headroom;
+// see also CPC_OUTPUTBLOCKSIZE in CPI_Player_Output_DirectSound.c.
+#define CIC_CIRCLE_DATABUFFER_SIZE  0x80000  //512Kb
 #define CIC_WAITTIMEOUT     2000  // 2Secs
 ////////////////////////////////////////////////////////////////////////////////
 // Callback interface (WinAmp doesn't "DO" cookies so we have to have this global
@@ -254,20 +265,15 @@ int CP_OutPI_Write(char *buf, int len)
 		return 1;
 		
 	EnterCriticalSection(&glb_OutputData.m_csGlobal);
-	
+
 	if (glb_OutputData.m_pCBuffer)
 		glb_OutputData.m_pCBuffer->Write(glb_OutputData.m_pCBuffer, buf, len);
-		
-	// Update the current time
-	{
-		int iBytesPerSample = (glb_OutputData.m_FileInfo.m_bStereo ? 2 : 1)
-							  * (glb_OutputData.m_FileInfo.m_iBitsPerSample / 8);
 
-		glb_OutputData.m_iCurrentTime_ms += ((len / iBytesPerSample) * 1000) / glb_OutputData.m_FileInfo.m_iFreq_Hz;
-	}
-	
+	// NOTE: "current time" is deliberately NOT updated here anymore - see
+	// CPP_OMAPLG_GetPCMBlock, which now tracks it on the read side instead.
+
 	LeaveCriticalSection(&glb_OutputData.m_csGlobal);
-	
+
 	return 0;
 }
 
@@ -817,6 +823,30 @@ BOOL CPP_OMAPLG_GetPCMBlock(CPs_CoDecModule* pModule, void* _pBlock, DWORD* pdwB
 	
 	reply = glb_OutputData.m_pCBuffer->Read(glb_OutputData.m_pCBuffer, _pBlock, *pdwBlockSize, &bytes);
 	*pdwBlockSize = (DWORD) bytes;
+
+	// Track "current position" by data actually leaving the circle buffer
+	// (heading toward audible output) rather than data the FLAC decode
+	// thread has merely queued up. The decode thread has plenty of spare
+	// CPU on this hardware (confirmed empirically) and will race ahead to
+	// fill the circle buffer as fast as it can; tracking on the write side
+	// (the old CP_OutPI_Write code) meant the displayed position - and
+	// therefore where a "seek to 0" actually lands - ran seconds ahead of
+	// what's actually audible once the circle buffer was enlarged to fix
+	// the premature-track-end bug above.
+	if (bytes)
+	{
+		EnterCriticalSection(&glb_OutputData.m_csGlobal);
+
+		{
+			int iBytesPerSample = (glb_OutputData.m_FileInfo.m_bStereo ? 2 : 1)
+								  * (glb_OutputData.m_FileInfo.m_iBitsPerSample / 8);
+
+			glb_OutputData.m_iCurrentTime_ms += ((bytes / iBytesPerSample) * 1000) / glb_OutputData.m_FileInfo.m_iFreq_Hz;
+		}
+
+		LeaveCriticalSection(&glb_OutputData.m_csGlobal);
+	}
+
 	return reply;
 }
 

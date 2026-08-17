@@ -78,6 +78,7 @@ void CPI_Player_Output_Initialise_File(CPs_OutputModule* pModule)
 	pModule->Flush = CPP_OMFL_Flush;
 	pModule->OnEQChanged = CPP_OMFL_OnEQChanged;
 	pModule->SetInternalVolume = CPP_OMFL_SetInternalVolume;
+	pModule->GetOutputLag_ms = NULL;
 	pModule->m_pModuleCookie = NULL;
 	pModule->m_pcModuleName = "WAV File Writer";
 	pModule->m_pCoDec = NULL;

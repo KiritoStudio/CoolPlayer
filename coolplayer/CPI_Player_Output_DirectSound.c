@@ -73,7 +73,13 @@ static const GUID CPC_SUBFORMAT_PCM = { 0x00000001, 0x0000, 0x0010, { 0x80, 0x00
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-#define CPC_OUTPUTBLOCKSIZE   0x10000 // 64KB block
+// See the matching comment on CIC_CIRCLE_DATABUFFER_SIZE in
+// CPI_Player_CoDec_WinAmpPlugin.c - the old 64KB (~0.37s) DirectSound buffer
+// left very little slack against transient stalls upstream (in particular
+// the FLAC winamp-plugin bridge's own circle buffer running dry), so bumped
+// this up for extra margin too; cheap on memory, only affects latency on
+// pause/seek by a fraction of a second.
+#define CPC_OUTPUTBLOCKSIZE   0x40000 // 256KB block
 #define CPC_MAXFILLAMOUNT   (CPC_OUTPUTBLOCKSIZE>>4) // 1/16th of total block size
 #define CPC_INVALIDCURSORPOS  0xFFFFFFFF
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +96,12 @@ typedef struct __CPs_OutputContext_DirectSound
 	DWORD m_TermState_HighestPlayPos;
 	DWORD m_TimerId;
 	BOOL m_bStreamRunning;
+	// Explicit count of bytes written to the DS ring but not yet reached by the
+	// hardware play cursor.  Kept as a counter (written bytes in, play-cursor
+	// advance out) rather than derived from cursor positions because a full
+	// ring and an empty ring both have m_WriteCursor == play cursor.
+	DWORD m_dwQueuedBytes;
+	DWORD m_dwLastPlayPos;
 	CPs_EqualiserModule* m_pEqualiser;
 	BYTE* m_pShadowBuffer;
 } CPs_OutputContext_DirectSound;
@@ -110,6 +122,7 @@ void CPP_OMDS_GetVolume(CPs_OutputModule* pModule, int *iVolume, HANDLE waiteven
 void CPP_OMDS_EnablePlay(CPs_OutputModule* pModule, const BOOL bEnable);
 void CPP_OMDS_OnEQChanged(CPs_OutputModule* pModule);
 void CPP_OMDS_SetInternalVolume(CPs_OutputModule* pModule, const int iNewVolume);
+int CPP_OMDS_GetOutputLag_ms(CPs_OutputModule* pModule);
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -126,6 +139,7 @@ void CPI_Player_Output_Initialise_DirectSound(CPs_OutputModule* pModule)
 	pModule->Flush = CPP_OMDS_Flush;
 	pModule->OnEQChanged = CPP_OMDS_OnEQChanged;
 	pModule->SetInternalVolume = CPP_OMDS_SetInternalVolume;
+	pModule->GetOutputLag_ms = CPP_OMDS_GetOutputLag_ms;
 	pModule->m_pModuleCookie = NULL;
 	pModule->m_pcModuleName = "DirectSound Plugout";
 	pModule->m_pCoDec = NULL;
@@ -252,7 +266,9 @@ void CPP_OMDS_Initialise(CPs_OutputModule* pModule, const CPs_FileInfo* pFileInf
 	pContext->m_TermState_HighestPlayPos = CPC_INVALIDCURSORPOS;
 	pContext->m_TimerId = 0;
 	pContext->m_bStreamRunning = FALSE;
-	
+	pContext->m_dwQueuedBytes = 0;
+	pContext->m_dwLastPlayPos = 0;
+
 	// Create shadow buffer (for live EQ)
 	pContext->m_pShadowBuffer = (BYTE*)malloc(CPC_OUTPUTBLOCKSIZE);
 	
@@ -350,7 +366,35 @@ void CPP_OMDS_RefillBuffers(CPs_OutputModule* pModule)
 		return;
 		
 	GetPlayPosAndInvalidLength(pContext, &dwCurrentPlayCursor, &dwAmountToFill);
-	
+
+	// Retire whatever the play cursor has consumed since we last looked
+	{
+		DWORD dwAdvance;
+
+		if (dwCurrentPlayCursor >= pContext->m_dwLastPlayPos)
+			dwAdvance = dwCurrentPlayCursor - pContext->m_dwLastPlayPos;
+		else
+			dwAdvance = CPC_OUTPUTBLOCKSIZE - (pContext->m_dwLastPlayPos - dwCurrentPlayCursor);
+
+		pContext->m_dwLastPlayPos = dwCurrentPlayCursor;
+
+		if (pContext->m_dwQueuedBytes > dwAdvance)
+			pContext->m_dwQueuedBytes -= dwAdvance;
+		else
+			pContext->m_dwQueuedBytes = 0;
+	}
+
+	// The cursor-derived free length cannot tell a completely full ring from a
+	// completely empty one (both have write cursor == play cursor), so when the
+	// ring got filled right up to the play cursor and the play cursor has not
+	// moved by the next tick, it would be seen as empty and a whole buffer of
+	// data would be pulled from the codec again, overwriting audio that has not
+	// played yet (an audible skip of a whole buffer's worth - this is what made
+	// FLAC tracks "start" several seconds in).  Clamp with the explicit queued
+	// count so we only ever fill genuinely free space.
+	if (dwAmountToFill > CPC_OUTPUTBLOCKSIZE - pContext->m_dwQueuedBytes)
+		dwAmountToFill = CPC_OUTPUTBLOCKSIZE - pContext->m_dwQueuedBytes;
+
 	// Limit the amount of filling that we do per batch
 	// - This will improve seek time and skipping on heavilly loaded systems
 	if (dwAmountToFill > CPC_MAXFILLAMOUNT && pContext->m_bStreamRunning == FALSE)
@@ -403,7 +447,13 @@ void CPP_OMDS_RefillBuffers(CPs_OutputModule* pModule)
 		
 		// Move cursor
 		pContext->m_WriteCursor += RealLength;
-		
+
+		// Account for the freshly queued (not yet audible) data
+		pContext->m_dwQueuedBytes += RealLength;
+
+		if (pContext->m_dwQueuedBytes > CPC_OUTPUTBLOCKSIZE)
+			pContext->m_dwQueuedBytes = CPC_OUTPUTBLOCKSIZE;
+
 		if (pContext->m_WriteCursor >= CPC_OUTPUTBLOCKSIZE)
 			pContext->m_WriteCursor -= CPC_OUTPUTBLOCKSIZE;
 			
@@ -546,8 +596,10 @@ void CPP_OMDS_Flush(CPs_OutputModule* pModule)
 	CPP_OMDS_EnablePlay(pModule, FALSE);
 	
 	IDirectSoundBuffer_GetCurrentPosition(pContext->lpDSB, &dwCurrentPlayCursor, NULL);
-	
+
 	pContext->m_WriteCursor = dwCurrentPlayCursor;
+	pContext->m_dwQueuedBytes = 0;
+	pContext->m_dwLastPlayPos = dwCurrentPlayCursor;
 }
 
 //
@@ -650,6 +702,43 @@ void CPP_OMDS_OnEQChanged(CPs_OutputModule* pModule)
 							  0L);
 	
 #endif
+}
+
+//
+//
+//
+int CPP_OMDS_GetOutputLag_ms(CPs_OutputModule* pModule)
+{
+	CPs_OutputContext_DirectSound* pContext = (CPs_OutputContext_DirectSound*)pModule->m_pModuleCookie;
+	DWORD dwPlayPos, dwAdvance;
+	HRESULT hrResult;
+	CP_CHECKOBJECT(pContext);
+
+	if (!pContext->lpDirectSound || !pContext->lpDSB
+			|| pContext->WaveFile.Format.nAvgBytesPerSec == 0)
+		return 0;
+
+	hrResult = IDirectSoundBuffer_GetCurrentPosition(pContext->lpDSB, &dwPlayPos, NULL);
+
+	if (FAILED(hrResult))
+		return 0;
+
+	// Retire whatever the play cursor has consumed since we last looked
+	// (this is called at least once per refill tick, i.e. much more often
+	// than the ring wraps, so the modulo distance is unambiguous)
+	if (dwPlayPos >= pContext->m_dwLastPlayPos)
+		dwAdvance = dwPlayPos - pContext->m_dwLastPlayPos;
+	else
+		dwAdvance = CPC_OUTPUTBLOCKSIZE - (pContext->m_dwLastPlayPos - dwPlayPos);
+
+	pContext->m_dwLastPlayPos = dwPlayPos;
+
+	if (pContext->m_dwQueuedBytes > dwAdvance)
+		pContext->m_dwQueuedBytes -= dwAdvance;
+	else
+		pContext->m_dwQueuedBytes = 0;
+
+	return (int)((pContext->m_dwQueuedBytes * 1000) / pContext->WaveFile.Format.nAvgBytesPerSec);
 }
 
 //

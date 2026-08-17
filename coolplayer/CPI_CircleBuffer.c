@@ -145,9 +145,26 @@ BOOL CircleBufferRead(CPs_CircleBuffer* pCBuffer, void* pDestBuffer, const unsig
 		
 		if (dwWaitResult == WAIT_TIMEOUT)
 		{
+			// A timeout here means the producer (the codec's own decode
+			// thread, for WinAmp-plugin-backed formats like FLAC) hasn't
+			// delivered more data within the wait window - it does NOT mean
+			// the stream is actually finished. Returning FALSE here used to
+			// be indistinguishable from genuine end-of-stream (see the
+			// m_bComplete check below) to every caller up the chain
+			// (CPP_OMAPLG_GetPCMBlock -> CPP_OMDS_RefillBuffers), which
+			// reacted to a transient stall - GC-ish pause inside the FLAC
+			// decoder, a disk I/O hiccup, some other process getting
+			// scheduled ahead of us on this weak/shared ARM box - by closing
+			// the file outright, i.e. cutting the track short and jumping to
+			// whatever played next. That's what showed up as tracks
+			// "skipping content" partway through. A short read is already
+			// handled correctly by the caller (it just advances the output
+			// write cursor by however many bytes actually arrived), so
+			// there's no need to give up on the stream here - just hand back
+			// what we have and let the engine ask again on its next tick.
 			CP_TRACE0("Circle buffer - did not fill in time!");
 			*pbBytesRead = iBytesRead;
-			return FALSE;
+			return TRUE;
 		}
 		
 		EnterCriticalSection(&pCBuffer->m_csCircleBuffer);
