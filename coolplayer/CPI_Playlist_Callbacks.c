@@ -24,6 +24,7 @@
 #include "globals.h"
 #include "CPI_PlaylistItem.h"
 #include "CPI_Playlist.h"
+#include "CPI_ModernUI.h"
 
 
 
@@ -37,10 +38,12 @@ void CPL_cb_OnItemUpdated(const CP_HPLAYLISTITEM hItem)
 	if (globals.m_hPlaylistViewControl)
 	{
 		const int iItemIDX = CPLI_GetCookie(hItem);
-		
+
 		if (iItemIDX != CPC_INVALIDITEM)
 			CLV_SetItemData(globals.m_hPlaylistViewControl, iItemIDX, hItem);
 	}
+
+	ModernUI_PlaylistChanged();
 }
 
 //
@@ -52,6 +55,8 @@ void CPL_cb_OnPlaylistAppend(const CP_HPLAYLISTITEM hItem)
 	
 	iNewItemIDX = CLV_AddItem(globals.m_hPlaylistViewControl, hItem);
 	CPLI_SetCookie(hItem, iNewItemIDX);
+
+	ModernUI_PlaylistChanged();
 }
 
 //
@@ -70,6 +75,8 @@ void CPL_cb_OnPlaylistItemDelete(const CP_HPLAYLISTITEM hItem)
 	
 	for (hCursor = CPLI_Next(hItem); hCursor; hCursor = CPLI_Next(hCursor), iItemIDX++)
 		CPLI_SetCookie(hCursor, iItemIDX);
+
+	ModernUI_PlaylistChanged();
 }
 
 //
@@ -79,6 +86,8 @@ void CPL_cb_OnPlaylistEmpty()
 {
 	if (globals.m_hPlaylistViewControl)
 		CLV_RemoveAllItems(globals.m_hPlaylistViewControl);
+
+	ModernUI_PlaylistChanged();
 }
 
 //
@@ -111,7 +120,9 @@ void CPL_cb_SetWindowToReflectList()
 {
 	CP_HPLAYLISTITEM hCursor;
 	CP_HPLAYLISTITEM hSelected;
-	
+
+	ModernUI_SetBatch(TRUE);
+
 	if (globals.m_hPlaylistViewControl)
 		CLV_BeginBatch(globals.m_hPlaylistViewControl);
 		
@@ -130,6 +141,8 @@ void CPL_cb_SetWindowToReflectList()
 		
 	if (globals.m_hPlaylistViewControl)
 		CLV_EndBatch(globals.m_hPlaylistViewControl);
+
+	ModernUI_SetBatch(FALSE);
 }
 
 //
@@ -137,6 +150,8 @@ void CPL_cb_SetWindowToReflectList()
 //
 void CPL_cb_LockWindowUpdates(const BOOL bLock)
 {
+	ModernUI_SetBatch(bLock);
+
 	if (globals.m_hPlaylistViewControl)
 	{
 		if (bLock)

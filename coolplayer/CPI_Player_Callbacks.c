@@ -25,6 +25,7 @@
 #include "CPI_Player.h"
 #include "CPI_Playlist.h"
 #include "CPI_PlaylistItem.h"
+#include "CPI_ModernUI.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,6 +76,8 @@ void CPI_Player_cb_OnStreamInfo(CP_HPLAYER hPlayer, const CPs_FileInfo* pInfo)
 		
 	main_draw_bitrate(windows.wnd_main);
 	main_draw_frequency(windows.wnd_main);
+
+	ModernUI_OnStreamInfo(pInfo->m_iBitRate_Kbs, pInfo->m_iFreq_Hz, pInfo->m_iBitsPerSample, pInfo->m_bStereo);
 }
 
 //
@@ -190,7 +193,7 @@ void CPI_Player_cb_OnVolumeChange(CP_HPLAYER hPlayer, const int iNewVolume)
 //
 void CPI_Player_cb_OnStreamStateChange(CP_HPLAYER hPlayer, const BOOL bStreaming, const int iBufferUsagePercent)
 {
-	const int iRange = Skin.Object[PositionSlider].maxw ? Skin.Object[PositionSlider].h : Skin.Object[PositionSlider].w;
+	const int iRange = MODERNUI_SEEK_RANGE;
 	
 	// Set streaming params
 	globals.m_bStreaming = bStreaming;

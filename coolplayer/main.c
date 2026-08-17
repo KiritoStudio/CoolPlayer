@@ -29,6 +29,7 @@
 #include "CPI_PlaylistWindow.h"
 #include "RotatingIcon.h"
 #include "CPI_Indicators.h"
+#include "CPI_ModernUI.h"
 
 
 
@@ -322,55 +323,19 @@ void main_update_title_text()
 //
 //
 //
-void    main_draw_title(HWND hWnd)
+void	main_draw_title(HWND hWnd)
 {
-	// int     left = Skin.Object[SongtitleText].x;
-	// int     top = Skin.Object[SongtitleText].y;
-	window_bmp_transparent_blt(hWnd, graphics.bmp_main_title_area,
-							   Skin.Object[SongtitleText].x,
-							   Skin.Object[SongtitleText].y,
-							   (Skin.Object[SongtitleText].maxw + 1) * Skin.Object[SongtitleText].w,
-							   Skin.Object[SongtitleText].h,
-							   0 + globals.main_int_title_scroll_position, 0);
+	ModernUI_ActiveChanged();
 }
 
-void    main_draw_bitrate(HWND hWnd)
+void	main_draw_bitrate(HWND hWnd)
 {
-	int     left = Skin.Object[BitrateText].x;
-	int     top = Skin.Object[BitrateText].y;
-	
-	if (left)
-	{
-		int     teller;
-		
-		for (teller = 0; globals.main_text_bitrate[teller]; teller++)
-			window_bmp_transparent_blt(hWnd, graphics.bmp_main_title_font,
-									   left + (teller * Skin.Object[SongtitleText].w),
-									   top, Skin.Object[SongtitleText].w,
-									   Skin.Object[SongtitleText].h,
-									   Skin.Object[SongtitleText].w *
-									   ((globals.main_text_bitrate[teller]) - 32), 0);
-	}
+	ModernUI_UpdateTransport();
 }
 
-void    main_draw_frequency(HWND hWnd)
+void	main_draw_frequency(HWND hWnd)
 {
-	int     left = Skin.Object[FreqText].x;
-	int     top = Skin.Object[FreqText].y;
-	
-	if (left)
-	{
-		int     teller;
-		
-		for (teller = 0; globals.main_text_frequency[teller]; teller++)
-			window_bmp_transparent_blt(hWnd, graphics.bmp_main_title_font,
-									   left + (teller * Skin.Object[SongtitleText].w),
-									   top, Skin.Object[SongtitleText].w,
-									   Skin.Object[SongtitleText].h,
-									   Skin.Object[SongtitleText].w *
-									   ((globals.main_text_frequency[teller]) - 32),
-									   0);
-	}
+	ModernUI_UpdateTransport();
 }
 
 void    main_set_eq(void)
@@ -378,107 +343,14 @@ void    main_set_eq(void)
 	CPI_Player__SetEQ(globals.m_hPlayer, options.equalizer, options.eq_settings);
 }
 
-void    main_draw_time(HWND hWnd)
+void	main_draw_time(HWND hWnd)
 {
-	int     top = Skin.Object[TimeText].y;
-	int     left = Skin.Object[TimeText].x;
-	int     height = Skin.Object[TimeText].h;
-	int     width = Skin.Object[TimeText].w;
-	unsigned long hrs, minutes, seconds;
-	
-	unsigned long ss = globals.main_int_track_total_seconds;
-	
-	int     tracknr = 0;//globals.main_int_playlist_track_number;
-	CP_HPLAYLISTITEM hCursor;
-	
-	for (hCursor = CPL_GetActiveItem(globals.m_hPlaylist); hCursor; hCursor = CPLI_Prev(hCursor))
-		tracknr++;
-		
-	if (left)
-	{
-		if (options.show_remaining_time == TRUE)
-			ss = (globals.main_long_track_duration - ss);
-			
-		seconds = ss % 60;
-		ss /= 60;
-		minutes = ss % 60;
-		ss /= 60;
-		hrs = ss;
-		
-		if (!tracknr && !ss)
-			return;
-			
-		// hours
-		window_bmp_transparent_blt(hWnd, graphics.bmp_main_time_font, left + width,
-								   top, width, height, width * hrs, 0);
-		                           
-		// Separator
-		window_bmp_transparent_blt(hWnd, graphics.bmp_main_time_font,
-								   left + (2 * width), top, width, height, width * 10,
-								   0);
-		                           
-		// minutes
-		window_bmp_transparent_blt(hWnd, graphics.bmp_main_time_font,
-								   left + (3 * width), top, width, height,
-								   width * (minutes / 10), 0);
-		                           
-		window_bmp_transparent_blt(hWnd, graphics.bmp_main_time_font,
-								   left + (4 * width), top, width, height,
-								   width * (minutes % 10), 0);
-		                           
-		// Separator
-		window_bmp_transparent_blt(hWnd, graphics.bmp_main_time_font,
-								   left + (5 * width), top, width, height, width * 10,
-								   0);
-		                           
-		// seconds
-		window_bmp_transparent_blt(hWnd, graphics.bmp_main_time_font,
-								   left + (6 * width), top, width, height,
-								   width * (seconds / 10), 0);
-		                           
-		window_bmp_transparent_blt(hWnd, graphics.bmp_main_time_font,
-								   left + (7 * width), top, width, height,
-								   width * (seconds % 10), 0);
-		                           
-		if (options.show_remaining_time == TRUE)
-			window_bmp_transparent_blt(hWnd, graphics.bmp_main_time_font, left, top,
-									   width, height, width * 11, 0);
-		else
-			window_bmp_transparent_blt(hWnd, graphics.bmp_main_up, left, top, width,
-									   height, left, top);
-	}
+	ModernUI_UpdateTransport();
 }
 
-void    main_draw_tracknr(HWND hWnd)
+void	main_draw_tracknr(HWND hWnd)
 {
-	int     top = Skin.Object[TrackText].y;
-	int     left = Skin.Object[TrackText].x;
-	int     width = Skin.Object[TrackText].w;
-	int     height = Skin.Object[TrackText].h;
-	int     nummertje;
-	int     tracknr = 0;//globals.main_int_playlist_track_number;
-	CP_HPLAYLISTITEM hCursor;
-	
-	for (hCursor = CPL_GetActiveItem(globals.m_hPlaylist); hCursor; hCursor = CPLI_Prev(hCursor))
-		tracknr++;
-		
-	if (left)
-	{
-	
-		if (tracknr)
-		{
-			nummertje = tracknr % 10;
-			window_bmp_transparent_blt(hWnd, graphics.bmp_main_track_font,
-									   left + (2 * width), top, width, height,
-									   width * (nummertje), 0);
-			nummertje = ((tracknr - nummertje) % 100);
-			window_bmp_transparent_blt(hWnd, graphics.bmp_main_track_font, left + width,
-									   top, width, height, width * (nummertje / 10), 0);
-			nummertje = ((tracknr - nummertje) % 1000);
-			window_bmp_transparent_blt(hWnd, graphics.bmp_main_track_font, left, top,
-									   width, height, width * (nummertje / 100), 0);
-		}
-	}
+	ModernUI_ActiveChanged();
 }
 
 BOOL    path_is_directory(char *filename)
@@ -652,79 +524,9 @@ void    main_draw_vu_from_mouse(HWND hWnd, int vunummer, int vuwaarde)
 	}
 }
 
-void    main_draw_vu_from_value(HWND hWnd, int vunummer, int vuwaarde)
+void	main_draw_vu_from_value(HWND hWnd, int vunummer, int vuwaarde)
 {
-	int     positionwaarde;
-	
-	if (Skin.Object[vunummer].maxw == 1) // Vertical slider
-	{
-		switch (vunummer)
-		{
-		
-			case VolumeSlider:
-				positionwaarde =
-					(int)((float) Skin.Object[vunummer].y +
-						  Skin.Object[vunummer].h -
-						  (((float) vuwaarde / (float) 100.0f) *
-						   (float) Skin.Object[vunummer].h));
-				break;
-				
-			case PositionSlider:
-				positionwaarde =
-					(int)(Skin.Object[PositionSlider].y +
-						  Skin.Object[PositionSlider].h) - vuwaarde;
-				          
-				if (vuwaarde > Skin.Object[PositionSlider].h)
-					positionwaarde = Skin.Object[PositionSlider].y;
-					
-				break;
-				
-			default:  // so it's a eq
-				positionwaarde =
-					(int)((float) Skin.Object[vunummer].y +
-						  Skin.Object[vunummer].h -
-						  (
-							  ((float)(vuwaarde + 128.0f) /
-							   (float) 255.0f) * (float) Skin.Object[vunummer].h));
-		}
-		
-		main_draw_vu_from_mouse(hWnd, vunummer, positionwaarde);
-	}
-	
-	else   // Horizontal Slider
-	{
-		switch (vunummer)
-		{
-		
-			case VolumeSlider:
-				positionwaarde =
-					(int)((float) Skin.Object[vunummer].x +
-						  (((float) vuwaarde / (float) 100.0f) *
-						   (float) Skin.Object[vunummer].w));
-				break;
-				
-			case PositionSlider:
-				positionwaarde =
-					(int) vuwaarde + Skin.Object[PositionSlider].x;
-				    
-				if (vuwaarde > Skin.Object[PositionSlider].w)
-					positionwaarde =
-						Skin.Object[PositionSlider].w +
-						Skin.Object[PositionSlider].x;
-					    
-				break;
-				
-			default:  // so it's a eq
-				positionwaarde =
-					(int)((float) Skin.Object[vunummer].x +
-						  (
-							  ((float)(vuwaarde + 128.0) /
-							   (float) 255.0f) * (float) Skin.Object[vunummer].w));
-		}
-		
-		main_draw_vu_from_mouse(hWnd, vunummer, positionwaarde);
-		
-	}
+	ModernUI_UpdateTransport();
 }
 
 BOOL    main_draw_vu_all(HWND hWnd, WPARAM wParam, LPARAM lParam,
@@ -902,98 +704,9 @@ int window_bmp_transparent_blt(HWND hWnd, HBITMAP SrcBmp, int srcx, int srcy, in
 
 
 
-void    main_draw_controls_all(HWND hWnd)
+void	main_draw_controls_all(HWND hWnd)
 {
-	int     teller;
-	
-	for (teller = PlaySwitch; teller <= ExitButton; teller++)
-	{
-		window_bmp_blt(hWnd, graphics.bmp_main_up, Skin.Object[teller].x,
-					   Skin.Object[teller].y, Skin.Object[teller].w,
-					   Skin.Object[teller].h, Skin.Object[teller].x,
-					   Skin.Object[teller].y);
-		window_bmp_blt(hWnd, graphics.bmp_main_up, Skin.Object[teller].x2,
-					   Skin.Object[teller].y2, Skin.Object[teller].w2,
-					   Skin.Object[teller].h2, Skin.Object[teller].x2,
-					   Skin.Object[teller].y2);
-		               
-		switch (teller)
-		{
-		
-			case RepeatSwitch:
-			
-				if (options.repeat_playlist)
-					window_bmp_blt(hWnd, graphics.bmp_main_switch,
-								   Skin.Object[RepeatSwitch].x2,
-								   Skin.Object[RepeatSwitch].y2,
-								   Skin.Object[RepeatSwitch].w2,
-								   Skin.Object[RepeatSwitch].h2,
-								   Skin.Object[RepeatSwitch].x2,
-								   Skin.Object[RepeatSwitch].y2);
-					               
-				break;
-				
-			case ShuffleSwitch:
-				if (options.shuffle_play)
-					window_bmp_blt(hWnd, graphics.bmp_main_switch,
-								   Skin.Object[ShuffleSwitch].x2,
-								   Skin.Object[ShuffleSwitch].y2,
-								   Skin.Object[ShuffleSwitch].w2,
-								   Skin.Object[ShuffleSwitch].h2,
-								   Skin.Object[ShuffleSwitch].x2,
-								   Skin.Object[ShuffleSwitch].y2);
-					               
-				break;
-				
-			case EqSwitch:
-				if (options.equalizer)
-					window_bmp_blt(hWnd, graphics.bmp_main_switch,
-								   Skin.Object[EqSwitch].x2,
-								   Skin.Object[EqSwitch].y2,
-								   Skin.Object[EqSwitch].w2,
-								   Skin.Object[EqSwitch].h2,
-								   Skin.Object[EqSwitch].x2,
-								   Skin.Object[EqSwitch].y2);
-					               
-				break;
-				
-			case PlaySwitch:
-				if (globals.m_enPlayerState == cppsPlaying)
-					window_bmp_blt(hWnd, graphics.bmp_main_switch,
-								   Skin.Object[teller].x2,
-								   Skin.Object[teller].y2,
-								   Skin.Object[teller].w2,
-								   Skin.Object[teller].h2,
-								   Skin.Object[teller].x2,
-								   Skin.Object[teller].y2);
-					               
-				break;
-				
-			case PauseSwitch:
-				if (globals.m_enPlayerState == cppsPaused)
-					window_bmp_blt(hWnd, graphics.bmp_main_switch,
-								   Skin.Object[teller].x2,
-								   Skin.Object[teller].y2,
-								   Skin.Object[teller].w2,
-								   Skin.Object[teller].h2,
-								   Skin.Object[teller].x2,
-								   Skin.Object[teller].y2);
-					               
-				break;
-				
-			case StopSwitch:
-				if (globals.m_enPlayerState == cppsStopped)
-					window_bmp_blt(hWnd, graphics.bmp_main_switch,
-								   Skin.Object[teller].x2,
-								   Skin.Object[teller].y2,
-								   Skin.Object[teller].w2,
-								   Skin.Object[teller].h2,
-								   Skin.Object[teller].x2,
-								   Skin.Object[teller].y2);
-					               
-				break;
-		}
-	}
+	ModernUI_UpdateTransport();
 }
 
 void    options_create(HWND hWnd)
@@ -1250,21 +963,22 @@ main_windowproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 			
 		case WM_CREATE:
-		
-			if (options.scroll_track_title)
-				SetTimer(hWnd, CPC_TIMERID_SCROLLTITLETEXT, 50, NULL);
-			else
-				KillTimer(hWnd, CPC_TIMERID_SCROLLTITLETEXT);
-				
+
 			SetTimer(hWnd, CPC_TIMERID_ROTATINGSMILY, 100, NULL);
-			
+
 			break;
 			
 		case WM_RBUTTONDOWN:
 		{
 			POINT points;
+
+			// Playlist rows get a modern context menu; anywhere else keeps
+			// the legacy popup menu.
+			if (ModernUI_OnRButtonDown(hWnd, MAKEPOINTS(lParam)))
+				return 0;
+
 			GetCursorPos(&points);
-			
+
 			main_menuproc(hWnd, &points);
 			break;
 		}
@@ -1276,90 +990,15 @@ main_windowproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			
 		case WM_LBUTTONDOWN:
 		{
-			int teller;
-			BOOL moveit = TRUE;
-			SetCapture(hWnd);
-			cursorpos = MAKEPOINTS(lParam);
-			
-			for (teller = 0; teller <= ExitButton; teller++)
-			{
-				if (cursorpos.x >= Skin.Object[teller].x
-						&& cursorpos.y >= Skin.Object[teller].y
-						&& cursorpos.x <=
-						Skin.Object[teller].x + Skin.Object[teller].w
-						&& cursorpos.y <=
-						Skin.Object[teller].y + Skin.Object[teller].h)
-				{
-					window_bmp_blt(hWnd, graphics.bmp_main_down,
-								   Skin.Object[teller].x,
-								   Skin.Object[teller].y,
-								   Skin.Object[teller].w,
-								   Skin.Object[teller].h,
-								   Skin.Object[teller].x,
-								   Skin.Object[teller].y);
-					moveit = FALSE;
-					return 0;
-				}
-			}
-			
-			if (cursorpos.x >= Skin.Object[TimeText].x
-					&& cursorpos.y >= Skin.Object[TimeText].y
-					&& cursorpos.x <=
-					Skin.Object[TimeText].x + (Skin.Object[TimeText].w * 8)
-					&& cursorpos.y <=
-					Skin.Object[TimeText].y + Skin.Object[TimeText].h)
-			{
-				moveit = FALSE;
-			}
-			
-			// id3tag editor
-			/*if (cursorpos.x >= Skin.Object[SongtitleText].x
-			        && cursorpos.y >= Skin.Object[SongtitleText].y
-			        && cursorpos.x <=
-			        Skin.Object[SongtitleText].x +
-			        (Skin.Object[SongtitleText].w *
-			         Skin.Object[SongtitleText].maxw)
-			        && cursorpos.y <=
-			        Skin.Object[SongtitleText].y +
-			        Skin.Object[SongtitleText].h) {
-			    moveit = FALSE;
-			}*/
-			// VU & volume
-			
-			if (main_draw_vu_all(hWnd, wParam, lParam, TRUE) == FALSE)
-				moveit = FALSE;
-				
-			// Move Window
-			if ((cursorpos.x >= Skin.Object[MoveArea].x
-					&& cursorpos.y >= Skin.Object[MoveArea].y
-					&& cursorpos.x <= Skin.Object[MoveArea].x + Skin.Object[MoveArea].w
-					&& cursorpos.y <= Skin.Object[MoveArea].y + Skin.Object[MoveArea].h)
-					|| (moveit == TRUE && options.easy_move == TRUE))
-			{
-				ReleaseCapture();
-				SendMessage(hWnd, WM_SYSCOMMAND, SC_MOVE | HTCLIENT, 0);
-			}
-			
-			break;
+			ModernUI_OnLButtonDown(hWnd, MAKEPOINTS(lParam));
+			return 0;
 		}
 		
 		case WM_MOUSEMOVE:
 		{
-			MSG     msg;
-			
-			if (wParam == MK_LBUTTON)
-				main_draw_vu_all(hWnd, wParam, lParam, FALSE);
-				
-			msg.lParam = lParam;
-			msg.wParam = wParam;
-			msg.message = message;
-			msg.hwnd = hWnd;
-			
-			SendMessage(windows.wnd_tooltip, TTM_RELAYEVENT, 0,
-						(LPARAM)(LPMSG) & msg);
+			ModernUI_OnMouseMove(hWnd, MAKEPOINTS(lParam), wParam);
+			return 0;
 		}
-		
-		break;
 		
 		case WM_CANCELMODE:
 			ReleaseCapture();
@@ -1367,155 +1006,23 @@ main_windowproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			
 		case WM_LBUTTONUP:
 		{
-			int     teller;
-			ReleaseCapture();
-			globals.main_bool_slider_keep_focus = FALSE;
-			cursorpos = MAKEPOINTS(lParam);
-			
-			for (teller = PlaySwitch; teller <= ExitButton; teller++)
-			{
-				if (cursorpos.x >= Skin.Object[teller].x
-						&& cursorpos.y >= Skin.Object[teller].y
-						&& cursorpos.x <=
-						Skin.Object[teller].x + Skin.Object[teller].w
-						&& cursorpos.y <=
-						Skin.Object[teller].y + Skin.Object[teller].h)
-				{
-					switch (teller)
-					{
-					
-						case PlaySwitch:
-							main_play_control(ID_PLAY, hWnd);
-							break;
-							
-						case PauseSwitch:
-							main_play_control(ID_PAUSE, hWnd);
-							break;
-							
-						case StopSwitch:
-							main_play_control(ID_STOP, hWnd);
-							break;
-							
-						case RepeatSwitch:
-							main_play_control(ID_REPEAT, hWnd);
-							break;
-							
-						case ShuffleSwitch:
-							main_play_control(ID_SHUFFLE, hWnd);
-							break;
-							
-						case EqSwitch:
-							main_play_control(ID_EQUALIZER, hWnd);
-							break;
-							
-						case PlaylistButton:
-							main_play_control(ID_PLAYLIST, hWnd);
-							break;
-							
-						case NextButton:
-							main_play_control(ID_NEXT, hWnd);
-							break;
-							
-						case PrevButton:
-							main_play_control(ID_PREVIOUS, hWnd);
-							break;
-							
-						case MinimizeButton:
-						
-							if (options.show_on_taskbar)
-								ShowWindow(hWnd, SW_MINIMIZE);
-							else
-								ShowWindow(hWnd, SW_HIDE);
-								
-							break;
-							
-						case NextSkinButton:
-							main_play_control(ID_LOADSKIN, hWnd);
-							
-							break;
-							
-						case ExitButton:
-							CPVERB_Exit(vaDoVerb, hWnd);
-							// DestroyWindow(hWnd);
-							break;
-							
-						case EjectButton:
-							main_play_control(ID_LOAD, hWnd);
-							
-							break;
-					}
-				}
-			}
-			
-			// options.show_remaining_time time
-			
-			if (cursorpos.x >= Skin.Object[TimeText].x
-					&& cursorpos.y >= Skin.Object[TimeText].y
-					&& cursorpos.x <=
-					(Skin.Object[TimeText].x + (Skin.Object[TimeText].w * 8))
-					&& cursorpos.y <=
-					(Skin.Object[TimeText].y + Skin.Object[TimeText].h))
-			{
-				options.show_remaining_time = !options.show_remaining_time;
-				main_draw_time(hWnd);
-				break;
-			}
-			
-			main_draw_controls_all(hWnd);
-			
-			break;
+			ModernUI_OnLButtonUp(hWnd, MAKEPOINTS(lParam));
+			return 0;
 		}
 		
 		case WM_PAINT:
 		{
-			PAINTSTRUCT ps;
-			// HDC     winhdc = BeginPaint(hWnd, &ps);
-			BeginPaint(hWnd, &ps);
-			
-			if (graphics.bmp_main_up)
-			{
-				BITMAP  bm;
-				int     teller, teller2 = 1;
-				
-				HPALETTE oldpal;
-				oldpal =
-					SelectPalette(drawables.dc_main, graphics.pal_main,
-								  FALSE);
-				RealizePalette(drawables.dc_main);
-				
-				GetObject(graphics.bmp_main_up, sizeof(bm), &bm);
-				window_bmp_blt(hWnd, graphics.bmp_main_up, ps.rcPaint.left,
-							   ps.rcPaint.top, ps.rcPaint.right,
-							   ps.rcPaint.bottom, ps.rcPaint.left,
-							   ps.rcPaint.top);
-				               
-				for (teller = Eq1; teller <= Eq8; teller++)
-					main_draw_vu_from_value(hWnd, teller,
-											options.eq_settings
-											[teller2++]);
-					                        
-				main_draw_vu_from_value(hWnd, VolumeSlider, globals.m_iVolume);
-				
-				if (globals.m_bStreaming == TRUE)
-					main_draw_vu_from_value(windows.wnd_main, PositionSlider, globals.m_iStreamingPortion);
-				else
-					main_draw_vu_from_value(windows.wnd_main, PositionSlider, globals.main_int_track_position);
-					
-				main_draw_tracknr(hWnd);
-				main_draw_title(hWnd);
-				main_draw_time(hWnd);
-				main_draw_bitrate(hWnd);
-				main_draw_frequency(hWnd);
-				main_draw_controls_all(hWnd);
-
-				SelectPalette(drawables.dc_main, oldpal, FALSE);
-			}
-			
-			EndPaint(hWnd, &ps);
-			
+			ModernUI_Paint(hWnd);
 			return 0;
 		}
+
+		case WM_ERASEBKGND:
+			return 1;
 		
+		case WM_SIZE:
+			ModernUI_OnSize(hWnd);
+			break;
+
 		case WM_MOVE:
 			options.main_window_pos.x = (int)(short) LOWORD(lParam);  // horizontal position
 			options.main_window_pos.y = (int)(short) HIWORD(lParam);  // vertical position
@@ -1534,10 +1041,12 @@ main_windowproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		return 0;
 		
 		case WM_DESTROY:
-		
+
+			ModernUI_Destroy();
+
 			if (options.remember_playlist == TRUE)
 				playlist_write_default();
-				
+
 			CPlaylistWindow_Destroy();
 			
 			//  CPlayerWindow_Destroy();
@@ -2196,16 +1705,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		
 		if (RegisterClass(&wc))
 		{
-			BITMAP  bm;
-			GetObject(graphics.bmp_main_up, sizeof(bm), &bm);
 			globals.m_hPlayer = NULL;
 			hWnd =
-				CreateWindowEx(WS_EX_ACCEPTFILES | WS_EX_TOOLWINDOW,
+				CreateWindowEx(WS_EX_ACCEPTFILES,
 							   CLC_COOLPLAYER_WINDOWCLASSNAME, "CoolPlayer",
-							   WS_POPUP | WS_CLIPSIBLINGS,
+							   WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
 							   options.main_window_pos.x,
-							   options.main_window_pos.y, bm.bmWidth,
-							   bm.bmHeight, NULL, NULL, hInstance, NULL);
+							   options.main_window_pos.y, MODERNUI_WINDOW_WIDTH,
+							   MODERNUI_WINDOW_HEIGHT, NULL, NULL, hInstance, NULL);
 			SendMessage(hWnd, WM_SETICON, (WPARAM)ICON_BIG, (LPARAM)LoadIcon(hInstance, MAKEINTRESOURCE(APP_ICON)));
 			SendMessage(hWnd, WM_SETICON, (WPARAM)ICON_SMALL, (LPARAM)LoadIcon(hInstance, MAKEINTRESOURCE(APP_ICON)));
 			
@@ -2238,16 +1745,12 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				// Create player instance
 				globals.m_hPlayer = CPI_Player__Create(hWnd);
 				globals.m_iVolume = CPI_Player__GetVolume(globals.m_hPlayer);
-				
-				winregion =
-					main_bitmap_to_region(graphics.bmp_main_up, Skin.transparentcolor);
-				    
-				SetWindowRgn(hWnd, winregion, TRUE);
+
 				ShowWindow(hWnd, globals.main_int_show_minimized);
 				globals.m_hSysIcon = CPSYSICON_Create(hWnd);
-				
-				CPI_Player__SetPositionRange(globals.m_hPlayer,
-											 Skin.Object[PositionSlider].maxw ? Skin.Object[PositionSlider].h : Skin.Object[PositionSlider].w);
+
+				CPI_Player__SetPositionRange(globals.m_hPlayer, MODERNUI_SEEK_RANGE);
+				ModernUI_Init(hWnd);
 				CP_InitWindowsRoutines();
 				IF_ProcessInit();
 				//  CPlayerWindow_Create();
