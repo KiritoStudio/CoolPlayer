@@ -38,6 +38,16 @@ void ModernUI_OnMouseMove(HWND hWnd, POINTS pt, WPARAM wParam);
 void ModernUI_OnLButtonUp(HWND hWnd, POINTS pt);
 BOOL ModernUI_OnRButtonDown(HWND hWnd, POINTS pt);
 
+// Unlike the stubs above, this one isn't a no-op: WM_MOUSEWHEEL goes to
+// whichever window has keyboard focus rather than whatever's under the
+// cursor, so main.c's own WM_MOUSEWHEEL handler (which unconditionally
+// treats every wheel notch as a volume change) can be fooled by stale
+// focus the same way the trackbars can. Call this first; it scrolls the
+// playlist or nudges a trackbar when the cursor is over one of those and
+// returns TRUE, or returns FALSE (cursor over neither) so the caller can
+// fall back to its own default handling.
+BOOL ModernUI_OnMouseWheel(WPARAM wParam, LPARAM lParam);
+
 // Refresh hooks called from the engine callback translation units:
 //  - UpdateTransport: seek position, time labels, play/pause glyph, volume,
 //    status bar text

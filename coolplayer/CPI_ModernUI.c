@@ -78,6 +78,7 @@ static HWND g_hVol = NULL;
 static HWND g_hList = NULL;
 static HWND g_hStatus = NULL;
 static WNDPROC g_pfnStatusOrigProc = NULL;
+static WNDPROC g_pfnTrackbarOrigProc = NULL;
 static HFONT g_hFontUI = NULL;
 
 static BOOL g_bSeekDragging = FALSE;
@@ -106,6 +107,8 @@ static DWORD g_dwLastTransportKeyTick = 0;
 
 static LRESULT CALLBACK FooPanelProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 static LRESULT CALLBACK StatusBarSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+static LRESULT CALLBACK TrackbarWheelSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+static BOOL RouteMouseWheel(POINT pt, WPARAM wParam, LPARAM lParam);
 static void CreateControls(HWND hPanel);
 static void LayoutControls(void);
 static void RebuildPlaylistRows(void);
@@ -635,6 +638,92 @@ static LRESULT CALLBACK StatusBarSubclassProc(HWND hWnd, UINT uMsg, WPARAM wPara
 	return CallWindowProc(g_pfnStatusOrigProc, hWnd, uMsg, wParam, lParam);
 }
 
+// WM_MOUSEWHEEL is delivered to whichever window currently has keyboard
+// focus, not to whatever the mouse happens to be over - unlike most other
+// mouse messages, and unlike what a user would reasonably expect ("scroll
+// the thing the cursor is on"). Most of the time nothing has taken focus
+// away from the main window, so every wheel notch anywhere in the window
+// (the playlist included) reaches main.c's own WM_MOUSEWHEEL handler, which
+// unconditionally treats it as a volume change - that's what actually moves
+// the volume slider (main.c adjusts globals.m_iVolume and the trackbar's
+// on-screen thumb just gets resynced to it on the next transport update,
+// it's not the trackbar reacting to the wheel itself). Clicking a trackbar
+// first can also leave *it* with focus instead, which routes the message
+// differently but has the same "wrong control eats every wheel notch"
+// symptom - see TrackbarWheelSubclassProc below for that path.
+//
+// Routes a wheel notch to whichever control the cursor is actually over:
+// the ListView (this build's comctl32 doesn't scroll it on WM_MOUSEWHEEL by
+// itself - confirmed on-device: sending the message directly did nothing -
+// so it's driven explicitly via ListView_Scroll instead of just forwarding
+// and hoping) or one of the trackbars. Returns FALSE if the cursor isn't
+// over anything this function wants to claim, leaving the caller free to
+// fall back to whatever it did before this existed.
+static BOOL RouteMouseWheel(POINT pt, WPARAM wParam, LPARAM lParam)
+{
+	RECT rc;
+
+	if (g_hList && GetWindowRect(g_hList, &rc) && PtInRect(&rc, pt))
+	{
+		short zDelta = (short)HIWORD(wParam);
+		RECT rcItem;
+		int itemHeight = 18;  // fallback if the list has no rows to measure yet
+
+		// LVM_GETITEMSPACING only applies to icon/tile views, not LVS_REPORT
+		// (the one this list uses) - measuring an actual row's rect is the
+		// correct way to get a report-view row height.
+		if (ListView_GetItemRect(g_hList, 0, &rcItem, LVIR_BOUNDS))
+			itemHeight = rcItem.bottom - rcItem.top;
+
+		// zDelta isn't guaranteed to be a clean multiple of WHEEL_DELTA
+		// (precision touchpads/trackballs routinely report smaller deltas
+		// per notch) - dividing first (zDelta / WHEEL_DELTA) truncates to 0
+		// for any single notch below that, silently turning every scroll
+		// into a no-op. Just use the sign and move a fixed 3 rows per call.
+		ListView_Scroll(g_hList, 0, (zDelta < 0 ? 1 : -1) * 3 * itemHeight);
+		return TRUE;
+	}
+
+	if (g_hVol && GetWindowRect(g_hVol, &rc) && PtInRect(&rc, pt))
+	{
+		CallWindowProc(g_pfnTrackbarOrigProc, g_hVol, WM_MOUSEWHEEL, wParam, lParam);
+		return TRUE;
+	}
+
+	if (g_hSeek && GetWindowRect(g_hSeek, &rc) && PtInRect(&rc, pt))
+	{
+		CallWindowProc(g_pfnTrackbarOrigProc, g_hSeek, WM_MOUSEWHEEL, wParam, lParam);
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+// Both trackbars are subclassed with this proc so a wheel notch that only
+// reached one of them because it had stale focus (see RouteMouseWheel's
+// comment above) gets redirected to whatever the cursor is really over,
+// instead of always moving that trackbar's thumb.
+static LRESULT CALLBACK TrackbarWheelSubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	if (uMsg == WM_MOUSEWHEEL)
+	{
+		POINT pt;
+		RECT rc;
+
+		pt.x = (short)LOWORD(lParam);
+		pt.y = (short)HIWORD(lParam);
+		GetWindowRect(hWnd, &rc);
+
+		if (!PtInRect(&rc, pt))
+		{
+			RouteMouseWheel(pt, wParam, lParam);
+			return 0;
+		}
+	}
+
+	return CallWindowProc(g_pfnTrackbarOrigProc, hWnd, uMsg, wParam, lParam);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Control creation and layout
 
@@ -679,6 +768,12 @@ static void CreateControls(HWND hPanel)
 	SendMessage(g_hVol, TBM_SETRANGE, FALSE, MAKELPARAM(0, 100));
 	SendMessage(g_hVol, TBM_SETPAGESIZE, 0, 5);
 	SendMessage(g_hVol, TBM_SETPOS, TRUE, globals.m_iVolume);
+
+	// Both trackbars share one subclass proc - comctl32 backs every
+	// TRACKBAR_CLASS instance with the same wndproc, so one saved pointer
+	// works for calling either one's original behaviour back.
+	g_pfnTrackbarOrigProc = (WNDPROC)SetWindowLongPtr(g_hSeek, GWLP_WNDPROC, (LONG_PTR)TrackbarWheelSubclassProc);
+	SetWindowLongPtr(g_hVol, GWLP_WNDPROC, (LONG_PTR)TrackbarWheelSubclassProc);
 
 	g_hList = CreateWindowEx(WS_EX_CLIENTEDGE, WC_LISTVIEW, "",
 							 WS_CHILD | WS_VISIBLE | WS_TABSTOP | LVS_REPORT
@@ -781,6 +876,16 @@ static LRESULT CALLBACK FooPanelProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM
 		case WM_SIZE:
 			LayoutControls();
 			return 0;
+
+		case WM_MOUSEWHEEL:
+		{
+			POINT pt;
+
+			pt.x = (short)LOWORD(lParam);
+			pt.y = (short)HIWORD(lParam);
+			RouteMouseWheel(pt, wParam, lParam);
+			return 0;
+		}
 
 		case WMAPP_REMOVE_SELECTED:
 			ModernUI_RemoveSelectedRows();
@@ -1256,6 +1361,16 @@ BOOL ModernUI_OnRButtonDown(HWND hWnd, POINTS pts)
 {
 	(void)hWnd; (void)pts;
 	return FALSE;
+}
+
+BOOL ModernUI_OnMouseWheel(WPARAM wParam, LPARAM lParam)
+{
+	POINT pt;
+
+	pt.x = (short)LOWORD(lParam);
+	pt.y = (short)HIWORD(lParam);
+
+	return RouteMouseWheel(pt, wParam, lParam);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

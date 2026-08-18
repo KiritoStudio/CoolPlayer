@@ -867,7 +867,18 @@ main_windowproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case WM_MOUSEWHEEL:
 		{
 			short zDelta = (short) HIWORD(wParam);
-			
+
+			// WM_MOUSEWHEEL goes to whichever window has keyboard focus, not
+			// whatever the cursor is over - this case only runs at all when
+			// that happens to be the main window itself (e.g. no child
+			// control has taken focus yet). If the cursor is actually over
+			// one of ModernUI's child controls (most commonly the
+			// playlist), let that control handle the wheel instead of
+			// treating every wheel notch as a volume change regardless of
+			// where the mouse is.
+			if (ModernUI_OnMouseWheel(wParam, lParam))
+				return 0;
+
 			if (zDelta < 0)
 				globals.m_iVolume -= 5;
 			else
