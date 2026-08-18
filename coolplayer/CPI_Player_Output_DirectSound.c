@@ -172,19 +172,28 @@ void CPP_OMDS_Initialise(CPs_OutputModule* pModule, const CPs_FileInfo* pFileInf
 	
 	if (DirectSoundCreate(NULL, &(pContext->lpDirectSound), NULL))
 	{
+		// On failure lpDirectSound is left invalid; without returning here,
+		// the SetCooperativeLevel call below would dereference it.
 		CP_FAIL("Cannot create DirectSound Object");
+		return;
 	}
 	
 	if (IDirectSound_SetCooperativeLevel(pContext->lpDirectSound, windows.wnd_main, DSSCL_NORMAL))
 	{
+		// See the matching comment in CPP_OMDS_RefillBuffers: CP_FAIL() does
+		// not actually stop execution in release builds, so this must return
+		// explicitly or the code below dereferences pContext after
+		// CPP_OMDS_Uninitialise() has freed it.
 		CPP_OMDS_Uninitialise(pModule);
 		CP_FAIL("Can\'t set DirectSound Cooperative level");
+		return;
 	}
-	
+
 	if (!pContext->lpDirectSound)
 	{
 		CPP_OMDS_Uninitialise(pModule);
 		CP_FAIL("Unable to initialise DirectSound");
+		return;
 	}
 	
 	memset(&pContext->WaveFile, 0, sizeof(pContext->WaveFile));
@@ -229,8 +238,11 @@ void CPP_OMDS_Initialise(CPs_OutputModule* pModule, const CPs_FileInfo* pFileInf
 	           
 	if (FAILED(hrRetVal))
 	{
+		// Same hazard: without an explicit return, the code below would call
+		// IDirectSoundBuffer_Lock() on the NULL lpDSB just set here.
 		pContext->lpDSB = NULL;
 		CP_FAIL("Cannot create soundbuffer");
+		return;
 	}
 	
 	// Empty sound buffer
@@ -288,6 +300,14 @@ void CPP_OMDS_Uninitialise(CPs_OutputModule* pModule)
 {
 	CPs_OutputContext_DirectSound* pContext = (CPs_OutputContext_DirectSound*)pModule->m_pModuleCookie;
 	CP_CHECKOBJECT(pContext);
+
+	// A prior RefillBuffers()/IsOutputComplete() call may already have torn
+	// this down (fatal Lock/Unlock failure) and cleared the cookie; the
+	// engine loop's own bookkeeping (m_bOutputActive) doesn't know that
+	// happened, so Uninitialise() can legitimately be asked to run twice.
+	if (!pContext)
+		return;
+
 	CP_TRACE0("DirectSound shutting down");
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
 	
@@ -301,7 +321,16 @@ void CPP_OMDS_Uninitialise(CPs_OutputModule* pModule)
 	{
 		// Destroy the direct sound object.
 		IDirectSound_Release(pContext->lpDirectSound);
+
+		// Must null this out, not just close it - the engine thread's message
+		// loop checks "if (m_evtBlockFree)" to decide whether to wait on it
+		// (CPI_Player_Engine.c). A closed-but-non-NULL handle passes that
+		// check, and MsgWaitForMultipleObjects on an invalid handle returns
+		// immediately instead of blocking, turning that wait into a
+		// non-yielding spin loop (100% CPU, playback frozen) rather than a
+		// clean signal to reinitialise before the next track.
 		CloseHandle(pModule->m_evtBlockFree);
+		pModule->m_evtBlockFree = NULL;
 	}
 	
 	if (pContext->m_TimerId)
@@ -361,10 +390,13 @@ void CPP_OMDS_RefillBuffers(CPs_OutputModule* pModule)
 	DWORD dwAmountToFill, dwCurrentPlayCursor;
 	CPs_OutputContext_DirectSound* pContext = (CPs_OutputContext_DirectSound*)pModule->m_pModuleCookie;
 	CP_CHECKOBJECT(pContext);
-	
-	if (!pContext->lpDirectSound)
+
+	// A previous call may have hit a fatal Lock/Unlock failure and torn the
+	// module down (see below); the engine loop doesn't know that happened
+	// and will keep calling RefillBuffers() on every tick regardless.
+	if (!pContext || !pContext->lpDirectSound)
 		return;
-		
+
 	GetPlayPosAndInvalidLength(pContext, &dwCurrentPlayCursor, &dwAmountToFill);
 
 	// Retire whatever the play cursor has consumed since we last looked
@@ -416,10 +448,30 @@ void CPP_OMDS_RefillBuffers(CPs_OutputModule* pModule)
 		                                   
 		if (FAILED(hrRetVal))
 		{
+			// CP_FAIL() is a no-op in release builds (it only breaks into a
+			// debugger under _DEBUG), so without an explicit return here
+			// execution fell through into code that dereferences pContext
+			// (just freed by CPP_OMDS_Uninitialise) and writes through pbData
+			// (never set - Lock failed), a guaranteed use-after-free / wild
+			// write. This was the actual cause of the intermittent
+			// DSound-refill crashes.
 			CPP_OMDS_Uninitialise(pModule);
 			CP_FAIL("Cannot lock soundbuffer");
+
+			// Tell the engine loop this stream is dead too, otherwise it
+			// keeps thinking output is healthy (m_pCoDec still set) and
+			// calls straight back into this now-torn-down module next tick
+			// (UpdateProgress -> GetOutputLag_ms etc.) - same crash, one
+			// call later. Closing the codec here makes the engine's
+			// existing "ran out of data" bookkeeping take over cleanly.
+			if (pModule->m_pCoDec)
+			{
+				pModule->m_pCoDec->CloseFile(pModule->m_pCoDec);
+				pModule->m_pCoDec = NULL;
+			}
+			return;
 		}
-		
+
 		// Write data into shadow buffer
 		
 		if ((pContext->m_WriteCursor + dwAmountToFill) >= CPC_OUTPUTBLOCKSIZE)
@@ -466,8 +518,16 @@ void CPP_OMDS_RefillBuffers(CPs_OutputModule* pModule)
 		                                     
 		if (FAILED(hrRetVal))
 		{
+			// Same use-after-free hazard as the Lock failure path above.
 			CPP_OMDS_Uninitialise(pModule);
 			CP_FAIL("Cannot Unlock soundbuffer");
+
+			if (pModule->m_pCoDec)
+			{
+				pModule->m_pCoDec->CloseFile(pModule->m_pCoDec);
+				pModule->m_pCoDec = NULL;
+			}
+			return;
 		}
 	}
 	
@@ -494,8 +554,8 @@ void CPP_OMDS_SetPause(CPs_OutputModule* pModule, const BOOL bPause)
 {
 	CPs_OutputContext_DirectSound* pContext = (CPs_OutputContext_DirectSound*)pModule->m_pModuleCookie;
 	CP_CHECKOBJECT(pContext);
-	
-	if (!pContext->lpDirectSound)
+
+	if (!pContext || !pContext->lpDirectSound)
 		return;
 		
 	CPP_OMDS_EnablePlay(pModule, !bPause);
@@ -509,10 +569,10 @@ BOOL CPP_OMDS_IsOutputComplete(CPs_OutputModule* pModule)
 	CPs_OutputContext_DirectSound* pContext = (CPs_OutputContext_DirectSound*)pModule->m_pModuleCookie;
 	DWORD dwCurrentPlayCursor, dwInvalidLength;
 	CP_CHECKOBJECT(pContext);
-	
-	// Sound isn't open
-	
-	if (!pContext->lpDirectSound)
+
+	// Sound isn't open (or was torn down by a fatal RefillBuffers failure)
+
+	if (!pContext || !pContext->lpDirectSound)
 		return TRUE;
 		
 	// Was there ever any data in this buffer
@@ -589,10 +649,10 @@ void CPP_OMDS_Flush(CPs_OutputModule* pModule)
 	DWORD dwCurrentPlayCursor;
 	CPs_OutputContext_DirectSound* pContext = (CPs_OutputContext_DirectSound*)pModule->m_pModuleCookie;
 	CP_CHECKOBJECT(pContext);
-	
-	if (!pContext->lpDirectSound)
+
+	if (!pContext || !pContext->lpDirectSound)
 		return;
-		
+
 	CPP_OMDS_EnablePlay(pModule, FALSE);
 	
 	IDirectSoundBuffer_GetCurrentPosition(pContext->lpDSB, &dwCurrentPlayCursor, NULL);
@@ -609,6 +669,10 @@ void CPP_OMDS_EnablePlay(CPs_OutputModule* pModule, const BOOL bEnable)
 {
 	CPs_OutputContext_DirectSound* pContext = (CPs_OutputContext_DirectSound*)pModule->m_pModuleCookie;
 	CP_CHECKOBJECT(pContext);
+
+	if (!pContext)
+		return;
+
 	pContext->m_bStreamRunning = bEnable;
 	
 	// Setup event timer - according to our current requirements
@@ -714,7 +778,11 @@ int CPP_OMDS_GetOutputLag_ms(CPs_OutputModule* pModule)
 	HRESULT hrResult;
 	CP_CHECKOBJECT(pContext);
 
-	if (!pContext->lpDirectSound || !pContext->lpDSB
+	// pContext is NULL here if a fatal Lock/Unlock failure tore the module
+	// down mid-tick (see CPP_OMDS_RefillBuffers) - UpdateProgress() calls
+	// straight back into this on the very next line of the engine loop, so
+	// this NULL check is load-bearing, not defensive filler.
+	if (!pContext || !pContext->lpDirectSound || !pContext->lpDSB
 			|| pContext->WaveFile.Format.nAvgBytesPerSec == 0)
 		return 0;
 
@@ -749,7 +817,10 @@ void CPP_OMDS_SetInternalVolume(CPs_OutputModule* pModule, const int iNewVolume)
 	CPs_OutputContext_DirectSound* pContext = (CPs_OutputContext_DirectSound*)pModule->m_pModuleCookie;
 	LONG lVolume;
 	CP_CHECKOBJECT(pContext);
-	
+
+	if (!pContext || !pContext->lpDSB)
+		return;
+
 	lVolume = (int)(pow((double)(100 - iNewVolume) * 0.01, 3) * (double)DSBVOLUME_MIN);  //((100-iNewVolume) * DSBVOLUME_MIN) / 500;
 	IDirectSoundBuffer_SetVolume(pContext->lpDSB, lVolume);
 }

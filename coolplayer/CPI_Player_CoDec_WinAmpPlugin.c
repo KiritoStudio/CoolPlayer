@@ -813,15 +813,28 @@ void CPP_OMAPLG_Seek(CPs_CoDecModule* pModule, const int iNumerator, const int i
 //
 BOOL CPP_OMAPLG_GetPCMBlock(CPs_CoDecModule* pModule, void* _pBlock, DWORD* pdwBlockSize)
 {
-	unsigned int bytes;
-	BOOL reply;
-	
+	unsigned int bytes = 0;
+	BOOL reply = FALSE;
+	CPs_CircleBuffer* pCBuffer;
+
 #ifdef _DEBUG
 	CPs_CoDec_WinAmpPlugin *pContext = (CPs_CoDec_WinAmpPlugin*)pModule->m_pModuleCookie;
 	CP_CHECKOBJECT(pContext);
 #endif
-	
-	reply = glb_OutputData.m_pCBuffer->Read(glb_OutputData.m_pCBuffer, _pBlock, *pdwBlockSize, &bytes);
+
+	// Every other touch of glb_OutputData.m_pCBuffer in this file takes
+	// m_csGlobal and checks for NULL first (UnitialiseGlobalData() clears it
+	// on file close) - this was the one place that dereferenced it directly.
+	// Snapshot the pointer under the lock, then release before the
+	// (possibly several-second) blocking Read() call so this can't hold
+	// m_csGlobal while the decode thread's Write() side needs it.
+	EnterCriticalSection(&glb_OutputData.m_csGlobal);
+	pCBuffer = glb_OutputData.m_pCBuffer;
+	LeaveCriticalSection(&glb_OutputData.m_csGlobal);
+
+	if (pCBuffer)
+		reply = pCBuffer->Read(pCBuffer, _pBlock, *pdwBlockSize, &bytes);
+
 	*pdwBlockSize = (DWORD) bytes;
 
 	// Track "current position" by data actually leaving the circle buffer

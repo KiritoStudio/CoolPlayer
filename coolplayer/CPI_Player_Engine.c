@@ -157,18 +157,31 @@ DWORD WINAPI CPI_Player__EngineEP(void* pCookie)
 						// Check the file's format - if the sample rate, nChannels or sample size has changed
 						// then clear the current output and shutdown output device (this will cause a gap
 						// - but only when the format changes)
-						
+
 						else if (playercontext.m_bOutputActive == TRUE)
 						{
 							CPs_FileInfo FileInfo;
 							pNewCoDec->GetFileInfo(pNewCoDec, &FileInfo);
-							
+
+							// m_pModuleCookie == NULL here means a prior fatal error (e.g. the
+							// DirectSound Lock/Unlock failure path in RefillBuffers) already tore
+							// the output module down mid-track without the engine's own
+							// m_bOutputActive bookkeeping finding out. Reusing "the same stream"
+							// in that state means every field below - including m_evtBlockFree,
+							// the event this thread waits on a few lines down - is a stale handle
+							// into a destroyed object, so the wait call returns immediately
+							// forever and this becomes a silent, non-yielding spin (100% CPU,
+							// track frozen at 0:00, UI still responsive) instead of playing the
+							// next track. Force the same re-initialise path taken on a format
+							// change so a fresh output device (and a live m_evtBlockFree) gets
+							// created.
 							if (FileInfo.m_iFreq_Hz != playercontext.m_iOpenDevice_Freq_Hz
 									|| FileInfo.m_bStereo != playercontext.m_bOpenDevice_Stereo
 									|| FileInfo.m_b16bit != playercontext.m_bOpenDevice_16bit
-									|| FileInfo.m_iBitsPerSample != playercontext.m_iOpenDevice_BitsPerSample)
+									|| FileInfo.m_iBitsPerSample != playercontext.m_iOpenDevice_BitsPerSample
+									|| playercontext.m_pCurrentOutputModule->m_pModuleCookie == NULL)
 							{
-								CP_TRACE0("Stream format changes - clearing stream");
+								CP_TRACE0("Stream format changes (or output was torn down) - clearing stream");
 								EmptyOutputStream(&playercontext);
 								StartPlay(pNewCoDec, &playercontext);
 								bForceRefill = TRUE;
