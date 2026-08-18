@@ -1104,7 +1104,6 @@ main_windowproc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				CPL_Empty(globals.m_hPlaylist);
 				globals.m_enPlayerState = cppsStopped;
 				CPL_AddDroppedFiles(globals.m_hPlaylist, hDrop);
-				CPL_PlayItem(globals.m_hPlaylist, TRUE, pmCurrentItem);
 			}
 			
 			else
@@ -1497,7 +1496,11 @@ BOOL cmdline_parse_argument(char *token)
 		CPL_SyncLoadNextFile(globals.m_hPlaylist);
 		
 		if (path_is_directory(expath) == TRUE)
+		{
+			ModernUI_SetBatch(TRUE);
 			CPL_AddDirectory_Recurse(globals.m_hPlaylist, expath);
+			ModernUI_SetBatch(FALSE);
+		}
 		else
 			CPL_AddFile(globals.m_hPlaylist, expath);
 			
@@ -1558,9 +1561,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	BOOL    bAlreadyRuning;
 	HANDLE  hMutexOneInstance;
 	HWND hWndCoolPlayer = NULL;
-	
+
 	// Ensure that this system is audio capable
-	
+
 	if (waveOutGetNumDevs() < 1)
 	{
 		MessageBox(GetDesktopWindow(), "No audio devices in this system", "CoolPlayer", MB_ICONSTOP | MB_OK);

@@ -27,6 +27,7 @@
 #include "CPI_PlaylistItem_Internal.h"
 #include "CPI_Player.h"
 #include "CPI_Player_Engine.h"
+#include "CPI_ModernUI.h"
 
 #define CPC_TRACKSTACK_BUFFER_QUANTISATION 32
 typedef int (__cdecl *wp_SortFN)(const void *elem1, const void *elem2);
@@ -499,10 +500,12 @@ void CPL_HandleAsyncNotify(CP_HPLAYLIST hPlaylist, WPARAM wParam, LPARAM lParam)
 	
 	// Add all of the items in the chunk
 	CLV_BeginBatch(globals.m_hPlaylistViewControl);
-	
+	ModernUI_SetBatch(TRUE);
+
 	for (iChunkItemIDX = 0; iChunkItemIDX < pChunk->m_iNumberInChunk; iChunkItemIDX++)
 		CPL_AddSingleFile_pt2(globals.m_hPlaylist, pChunk->m_aryItems[iChunkItemIDX], pChunk->m_aryBatchIDs[iChunkItemIDX]);
-		
+
+	ModernUI_SetBatch(FALSE);
 	CLV_EndBatch(globals.m_hPlaylistViewControl);
 	
 	// Cleanup
@@ -1919,7 +1922,8 @@ void CPL_AddDroppedFiles(CP_HPLAYLIST hPlaylist, HDROP hDrop)
 	
 	// Add to playlist
 	CLV_BeginBatch(globals.m_hPlaylistViewControl);
-	
+	ModernUI_SetBatch(TRUE);
+
 	for (iFileIDX = 0; iFileIDX < iNumFiles; iFileIDX++)
 	{
 		if (path_is_directory(ppFiles[iFileIDX]) == TRUE)
@@ -1927,11 +1931,12 @@ void CPL_AddDroppedFiles(CP_HPLAYLIST hPlaylist, HDROP hDrop)
 			CPL_AddDirectory_Recurse(globals.m_hPlaylist, ppFiles[iFileIDX]);
 			strcpy(options.last_used_directory, ppFiles[iFileIDX]);
 		}
-		
+
 		else
 			CPL_AddFile(globals.m_hPlaylist, ppFiles[iFileIDX]);
 	}
-	
+
+	ModernUI_SetBatch(FALSE);
 	CLV_EndBatch(globals.m_hPlaylistViewControl);
 	
 	// Free string array

@@ -27,6 +27,7 @@
 #include "CPI_PlaylistWindow.h"
 #include "DLG_Find.h"
 #include "CPI_Player.h"
+#include "CPI_ModernUI.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -603,9 +604,11 @@ void CPVERB_AddDirectory(const CPe_VerbAction enAction, void* _pParam)
 		SHGetPathFromIDList(itemlist, globals.main_text_last_browsed_dir);
 		
 		CPL_SyncLoadNextFile(globals.m_hPlaylist);
-		
+
+		ModernUI_SetBatch(TRUE);
 		CPL_AddDirectory_Recurse(globals.m_hPlaylist, globals.main_text_last_browsed_dir);
-		
+		ModernUI_SetBatch(FALSE);
+
 		if (options.shuffle_play)
 			CPL_Stack_Shuffle(globals.m_hPlaylist, TRUE);
 	}
