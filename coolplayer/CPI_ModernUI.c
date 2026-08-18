@@ -46,6 +46,17 @@
 #define MENUCMD_REMOVE       5
 #define MENUCMD_REMOVEFILE   6
 
+// Posted back to ourselves from LVN_KEYDOWN instead of acting inline: any
+// handler that can delete/rebuild the ListView's rows (CPL_RemoveItem,
+// CPL_PlayItem - both end up calling ModernUI_PlaylistChanged ->
+// RebuildPlaylistRows, i.e. ListView_DeleteAllItems + re-insert) must not
+// run while still inside a notification *from that same ListView* - doing
+// so corrupts comctl32's internal state and crashes a few messages later.
+// Posting defers the actual work until after LVN_KEYDOWN has returned.
+#define WMAPP_REMOVE_SELECTED    (WM_APP + 1)
+#define WMAPP_TRANSPORT_TOGGLE   (WM_APP + 2)
+#define WMAPP_TRANSPORT_PLAY     (WM_APP + 3)
+
 #define FOO_TOOLBAR_H    32
 #define FOO_SEEK_GRAN    1000
 
@@ -80,6 +91,16 @@ static unsigned int g_fmtFreqHz = 0;
 static BOOL g_fmtStereo = TRUE;
 static BOOL g_fmtValid = FALSE;
 
+// Space/Enter re-issue CPL_PlayItem, which round-trips through the engine
+// thread's CPTM_OPENFILE (full close+reopen of the codec). That path only
+// de-dupes *queued* opens against each other, not against the STOP that
+// CPL_PlayItem sends first - key-repeat (holding the key down) can fire
+// this far faster than a human clicking the Play button ever would, faster
+// than the engine thread was ever exercised at. Debounce at the source
+// instead of trusting the decades-old engine code to absorb the flood.
+static DWORD g_dwLastTransportKeyTick = 0;
+#define TRANSPORT_KEY_DEBOUNCE_MS 350
+
 ////////////////////////////////////////////////////////////////////////////////
 // Forward declarations
 
@@ -96,6 +117,11 @@ static void PlayRow(int idx);
 static void OnColumnClick(int iColumn);
 static CP_HPLAYLISTITEM GetItemAtIndex(int idx);
 static int GetActiveIndex(void);
+static void ModernUI_SelectAllRows(void);
+static void ModernUI_RemoveSelectedRows(void);
+static void ComputeTrianglePoints(const RECT* prc, int iDir, POINT pts[3]);
+static void DrawIconTriangle(HDC hdc, const RECT* prc, int iDir);
+static void DrawTransportIcon(HDC hdc, const RECT* prc, int iCtlID);
 static void FormatSecs(char* buf, unsigned long secs);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,6 +164,133 @@ static int GetActiveIndex(void)
 static void FormatSecs(char* buf, unsigned long secs)
 {
 	wsprintf(buf, "%d:%02d", (int)(secs / 60), (int)(secs % 60));
+}
+
+// GDI-drawn transport icons: vector shapes instead of font glyphs, so they
+// render identically regardless of what the Segoe UI build on this device
+// supports.
+static void ComputeTrianglePoints(const RECT* prc, int iDir, POINT pts[3])
+{
+	int cx = (prc->left + prc->right) / 2;
+	int cy = (prc->top + prc->bottom) / 2;
+	int halfW = (prc->right - prc->left) / 2;
+	int halfH = (prc->bottom - prc->top) / 2;
+
+	if (halfW < 1) halfW = 1;
+	if (halfH < 1) halfH = 1;
+
+	if (iDir > 0)
+	{
+		pts[0].x = cx - halfW; pts[0].y = cy - halfH;
+		pts[1].x = cx - halfW; pts[1].y = cy + halfH;
+		pts[2].x = cx + halfW; pts[2].y = cy;
+	}
+	else
+	{
+		pts[0].x = cx + halfW; pts[0].y = cy - halfH;
+		pts[1].x = cx + halfW; pts[1].y = cy + halfH;
+		pts[2].x = cx - halfW; pts[2].y = cy;
+	}
+}
+
+static void DrawIconTriangle(HDC hdc, const RECT* prc, int iDir)
+{
+	POINT pts[3];
+
+	ComputeTrianglePoints(prc, iDir, pts);
+	Polygon(hdc, pts, 3);
+}
+
+static void DrawTransportIcon(HDC hdc, const RECT* prc, int iCtlID)
+{
+	RECT rc = *prc;
+	int barW = (rc.right - rc.left) / 5;
+
+	switch (iCtlID)
+	{
+		case IDC_FOO_STOP:
+			Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
+			break;
+
+		case IDC_FOO_PREV:
+		{
+			RECT rcTri = rc;
+			rcTri.left += barW * 2;
+			Rectangle(hdc, rc.left, rc.top, rc.left + barW, rc.bottom);
+			DrawIconTriangle(hdc, &rcTri, -1);
+			break;
+		}
+
+		case IDC_FOO_NEXT:
+		{
+			RECT rcTri = rc;
+			rcTri.right -= barW * 2;
+			Rectangle(hdc, rc.right - barW, rc.top, rc.right, rc.bottom);
+			DrawIconTriangle(hdc, &rcTri, 1);
+			break;
+		}
+
+		case IDC_FOO_PLAY:
+
+			if (globals.m_enPlayerState == cppsPlaying)
+			{
+				int pauseBarW = ((rc.right - rc.left) - 2) / 2;
+				Rectangle(hdc, rc.left, rc.top, rc.left + pauseBarW, rc.bottom);
+				Rectangle(hdc, rc.right - pauseBarW, rc.top, rc.right, rc.bottom);
+			}
+			else
+				DrawIconTriangle(hdc, &rc, 1);
+
+			break;
+	}
+}
+
+static void ModernUI_SelectAllRows(void)
+{
+	if (!g_hList)
+		return;
+
+	ListView_SetItemState(g_hList, -1, LVIS_SELECTED, LVIS_SELECTED);
+}
+
+static void ModernUI_RemoveSelectedRows(void)
+{
+	int iSelCount;
+	CP_HPLAYLISTITEM* ahItems;
+	int iCount = 0;
+	int idx;
+
+	if (!g_hList)
+		return;
+
+	iSelCount = ListView_GetSelectedCount(g_hList);
+
+	if (iSelCount <= 0)
+		return;
+
+	ahItems = (CP_HPLAYLISTITEM*)malloc(sizeof(CP_HPLAYLISTITEM) * iSelCount);
+
+	if (!ahItems)
+		return;
+
+	idx = -1;
+
+	while ((idx = ListView_GetNextItem(g_hList, idx, LVNI_SELECTED)) != -1 && iCount < iSelCount)
+	{
+		CP_HPLAYLISTITEM h = GetItemAtIndex(idx);
+
+		if (h)
+			ahItems[iCount++] = h;
+	}
+
+	ModernUI_SetBatch(TRUE);
+
+	for (idx = 0; idx < iCount; idx++)
+		CPL_RemoveItem(globals.m_hPlaylist, ahItems[idx]);
+
+	ModernUI_SetBatch(FALSE);
+
+	free(ahItems);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -473,20 +626,21 @@ static void CreateControls(HWND hPanel)
 	LVCOLUMN lvc;
 	NONCLIENTMETRICS ncm;
 
-	// Buttons carry simple geometric glyphs (present in Segoe UI): the OS
-	// draws them, so they are crisp at any DPI.
-	g_hBtnStop = CreateWindowExW(0, L"BUTTON", L"\x25A0",
-								 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-								 0, 0, 10, 10, hPanel, (HMENU)(INT_PTR)IDC_FOO_STOP, hInst, NULL);
-	g_hBtnPrev = CreateWindowExW(0, L"BUTTON", L"|\x25C4",
-								 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-								 0, 0, 10, 10, hPanel, (HMENU)(INT_PTR)IDC_FOO_PREV, hInst, NULL);
-	g_hBtnPlay = CreateWindowExW(0, L"BUTTON", L"\x25BA",
-								 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-								 0, 0, 10, 10, hPanel, (HMENU)(INT_PTR)IDC_FOO_PLAY, hInst, NULL);
-	g_hBtnNext = CreateWindowExW(0, L"BUTTON", L"\x25BA|",
-								 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-								 0, 0, 10, 10, hPanel, (HMENU)(INT_PTR)IDC_FOO_NEXT, hInst, NULL);
+	// Owner-drawn: icons are GDI vector shapes (see DrawTransportIcon), not
+	// font glyphs, so they render identically regardless of what the Segoe
+	// UI build on this device supports.
+	g_hBtnStop = CreateWindowEx(0, "BUTTON", "",
+								WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+								0, 0, 10, 10, hPanel, (HMENU)(INT_PTR)IDC_FOO_STOP, hInst, NULL);
+	g_hBtnPrev = CreateWindowEx(0, "BUTTON", "",
+								WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+								0, 0, 10, 10, hPanel, (HMENU)(INT_PTR)IDC_FOO_PREV, hInst, NULL);
+	g_hBtnPlay = CreateWindowEx(0, "BUTTON", "",
+								WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+								0, 0, 10, 10, hPanel, (HMENU)(INT_PTR)IDC_FOO_PLAY, hInst, NULL);
+	g_hBtnNext = CreateWindowEx(0, "BUTTON", "",
+								WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+								0, 0, 10, 10, hPanel, (HMENU)(INT_PTR)IDC_FOO_NEXT, hInst, NULL);
 
 	g_hLblElapsed = CreateWindowEx(0, "STATIC", "0:00",
 								   WS_CHILD | WS_VISIBLE | SS_CENTER,
@@ -510,7 +664,7 @@ static void CreateControls(HWND hPanel)
 
 	g_hList = CreateWindowEx(WS_EX_CLIENTEDGE, WC_LISTVIEW, "",
 							 WS_CHILD | WS_VISIBLE | WS_TABSTOP | LVS_REPORT
-							 | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
+							 | LVS_SHOWSELALWAYS,
 							 0, 0, 10, 10, hPanel, (HMENU)(INT_PTR)IDC_FOO_LIST, hInst, NULL);
 	ListView_SetExtendedListViewStyle(g_hList,
 									  LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP);
@@ -539,10 +693,6 @@ static void CreateControls(HWND hPanel)
 
 	if (g_hFontUI)
 	{
-		SendMessage(g_hBtnStop, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
-		SendMessage(g_hBtnPrev, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
-		SendMessage(g_hBtnPlay, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
-		SendMessage(g_hBtnNext, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 		SendMessage(g_hLblElapsed, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 		SendMessage(g_hLblTotal, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 		SendMessage(g_hList, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
@@ -612,6 +762,21 @@ static LRESULT CALLBACK FooPanelProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM
 	{
 		case WM_SIZE:
 			LayoutControls();
+			return 0;
+
+		case WMAPP_REMOVE_SELECTED:
+			ModernUI_RemoveSelectedRows();
+			return 0;
+
+		case WMAPP_TRANSPORT_TOGGLE:
+			if (globals.m_enPlayerState == cppsPlaying)
+				main_play_control(ID_PAUSE, g_hWnd);
+			else
+				main_play_control(ID_PLAY, g_hWnd);
+			return 0;
+
+		case WMAPP_TRANSPORT_PLAY:
+			main_play_control(ID_PLAY, g_hWnd);
 			return 0;
 
 		case WM_COMMAND:
@@ -694,6 +859,33 @@ static LRESULT CALLBACK FooPanelProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM
 			return 0;
 		}
 
+		case WM_DRAWITEM:
+		{
+			LPDRAWITEMSTRUCT pdis = (LPDRAWITEMSTRUCT)lParam;
+
+			if (pdis->CtlID == IDC_FOO_STOP || pdis->CtlID == IDC_FOO_PREV
+				|| pdis->CtlID == IDC_FOO_PLAY || pdis->CtlID == IDC_FOO_NEXT)
+			{
+				RECT rcIcon = pdis->rcItem;
+				UINT uFrameState = DFCS_BUTTONPUSH | ((pdis->itemState & ODS_SELECTED) ? DFCS_PUSHED : 0);
+
+				DrawFrameControl(pdis->hDC, &pdis->rcItem, DFC_BUTTON, uFrameState);
+
+				InflateRect(&rcIcon, -9, -6);
+
+				if (pdis->itemState & ODS_SELECTED)
+					OffsetRect(&rcIcon, 1, 1);
+
+				SelectObject(pdis->hDC, GetStockObject(BLACK_BRUSH));
+				SelectObject(pdis->hDC, GetStockObject(NULL_PEN));
+				DrawTransportIcon(pdis->hDC, &rcIcon, pdis->CtlID);
+
+				return TRUE;
+			}
+
+			break;
+		}
+
 		case WM_NOTIFY:
 		{
 			NMHDR* pHdr = (NMHDR*)lParam;
@@ -738,6 +930,28 @@ static LRESULT CALLBACK FooPanelProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM
 					{
 						NMLISTVIEW* pLv = (NMLISTVIEW*)lParam;
 						OnColumnClick(pLv->iSubItem);
+						return 0;
+					}
+
+					case LVN_KEYDOWN:
+					{
+						NMLVKEYDOWN* pKey = (NMLVKEYDOWN*)lParam;
+
+						if (pKey->wVKey == VK_DELETE || pKey->wVKey == VK_BACK)
+							PostMessage(hWnd, WMAPP_REMOVE_SELECTED, 0, 0);
+						else if (pKey->wVKey == 'A' && (GetKeyState(VK_CONTROL) & 0x8000))
+							ModernUI_SelectAllRows();  // just flips state bits - safe inline
+						else if (pKey->wVKey == VK_SPACE || pKey->wVKey == VK_RETURN)
+						{
+							DWORD dwNow = GetTickCount();
+
+							if (dwNow - g_dwLastTransportKeyTick >= TRANSPORT_KEY_DEBOUNCE_MS)
+							{
+								g_dwLastTransportKeyTick = dwNow;
+								PostMessage(hWnd, (pKey->wVKey == VK_SPACE) ? WMAPP_TRANSPORT_TOGGLE : WMAPP_TRANSPORT_PLAY, 0, 0);
+							}
+						}
+
 						return 0;
 					}
 
@@ -809,8 +1023,8 @@ void ModernUI_UpdateTransport(void)
 	if (GetCapture() != g_hVol)
 		SendMessage(g_hVol, TBM_SETPOS, TRUE, globals.m_iVolume);
 
-	// Play/pause glyph
-	SetWindowTextW(g_hBtnPlay, (globals.m_enPlayerState == cppsPlaying) ? L"||" : L"\x25BA");
+	// Play/pause icon (owner-drawn; state read in DrawTransportIcon)
+	InvalidateRect(g_hBtnPlay, NULL, TRUE);
 
 	// Status bar, foobar style:
 	// "Playing | FLAC | 1015 kbps | 44.1 kHz | Stereo | 0:23 / 3:41 | Title"
