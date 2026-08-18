@@ -43,7 +43,7 @@ void CPL_cb_OnItemUpdated(const CP_HPLAYLISTITEM hItem)
 			CLV_SetItemData(globals.m_hPlaylistViewControl, iItemIDX, hItem);
 	}
 
-	ModernUI_PlaylistChanged();
+	ModernUI_ItemChanged(hItem);
 }
 
 //

@@ -117,6 +117,7 @@ static void PlayRow(int idx);
 static void OnColumnClick(int iColumn);
 static CP_HPLAYLISTITEM GetItemAtIndex(int idx);
 static int GetActiveIndex(void);
+static int GetIndexOfItem(CP_HPLAYLISTITEM hTarget);
 static void ModernUI_SelectAllRows(void);
 static void ModernUI_RemoveSelectedRows(void);
 static void ComputeTrianglePoints(const RECT* prc, int iDir, POINT pts[3]);
@@ -155,6 +156,23 @@ static int GetActiveIndex(void)
 	for (h = CPL_GetFirstItem(globals.m_hPlaylist), i = 0; h; h = CPLI_Next(h), i++)
 	{
 		if (h == hActive)
+			return i;
+	}
+
+	return -1;
+}
+
+static int GetIndexOfItem(CP_HPLAYLISTITEM hTarget)
+{
+	CP_HPLAYLISTITEM h;
+	int i;
+
+	if (!hTarget)
+		return -1;
+
+	for (h = CPL_GetFirstItem(globals.m_hPlaylist), i = 0; h; h = CPLI_Next(h), i++)
+	{
+		if (h == hTarget)
 			return i;
 	}
 
@@ -1084,6 +1102,36 @@ void ModernUI_UpdateTransport(void)
 void ModernUI_PlaylistChanged(void)
 {
 	RebuildPlaylistRows();
+}
+
+void ModernUI_ItemChanged(CP_HPLAYLISTITEM hItem)
+{
+	int idx;
+	const char* pArtist;
+	const char* pAlbum;
+	const char* pTitle;
+	const char* pLen;
+
+	if (!g_hList)
+		return;
+
+	idx = GetIndexOfItem(hItem);
+
+	if (idx < 0)
+		return;
+
+	pArtist = CPLI_GetArtist(hItem);
+	pAlbum = CPLI_GetAlbum(hItem);
+	pTitle = CPLI_GetTrackName(hItem);
+	pLen = CPLI_GetTrackLength_AsText(hItem);
+
+	if (!pTitle || !pTitle[0])
+		pTitle = CPLI_GetFilename(hItem);
+
+	ListView_SetItemText(g_hList, idx, 1, (LPSTR)((pArtist && pArtist[0]) ? pArtist : "?"));
+	ListView_SetItemText(g_hList, idx, 2, (LPSTR)((pAlbum && pAlbum[0]) ? pAlbum : "?"));
+	ListView_SetItemText(g_hList, idx, 3, (LPSTR)((pTitle && pTitle[0]) ? pTitle : "(Unknown Track)"));
+	ListView_SetItemText(g_hList, idx, 4, (LPSTR)((pLen && pLen[0]) ? pLen : "?"));
 }
 
 void ModernUI_ActiveChanged(void)

@@ -41,11 +41,19 @@ BOOL ModernUI_OnRButtonDown(HWND hWnd, POINTS pt);
 // Refresh hooks called from the engine callback translation units:
 //  - UpdateTransport: seek position, time labels, play/pause glyph, volume,
 //    status bar text
-//  - PlaylistChanged: re-sync the ListView rows with the live playlist
+//  - PlaylistChanged: the playlist's row *count* changed (add/remove/empty) -
+//    full ListView_DeleteAllItems + re-insert
+//  - ItemChanged: one already-listed item's fields changed (e.g. a tag field
+//    just got filled in) - only that row's text is updated. A no-op if the
+//    item isn't in the ListView yet, which is the common case: background
+//    tag reads run on an item before it's linked into the visible playlist,
+//    so every field set during that stage is a no-op here rather than a
+//    full rebuild.
 //  - ActiveChanged: move the playing marker / selection to the active track
 //  - SetBatch: suppress ListView rebuilds during bulk playlist operations
 void ModernUI_UpdateTransport(void);
 void ModernUI_PlaylistChanged(void);
+void ModernUI_ItemChanged(CP_HPLAYLISTITEM hItem);
 void ModernUI_ActiveChanged(void);
 void ModernUI_SetBatch(BOOL bLock);
 
