@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -191,7 +191,7 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 				{
 					OPENFILENAME fn;
 					char    filefilter[] =
-						"CoolPlayer Skin Initialization Files (*.ini)\0*.ini\0All Files (*.*)\0*.*\0";
+						"RTPlayer Skin Initialization Files (*.ini)\0*.ini\0All Files (*.*)\0*.*\0";
 					BOOL    returnval;
 					char    initialfilename[MAX_PATH * 100] = "";
 					char    pathbuffie[MAX_PATH];
@@ -430,15 +430,15 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 					
 					GetModuleFileName(NULL, pathbuf, MAX_PATH);
 					sprintf(stringval, "%s,%1d", pathbuf, 1);
-					RegCreateKeyEx(HKEY_CLASSES_ROOT, CIC_COOLPLAYER_FILETYPE,
+					RegCreateKeyEx(HKEY_CLASSES_ROOT, CIC_RTPLAYER_FILETYPE,
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegSetValueEx(result, NULL, 0, REG_SZ,
-								  CIC_COOLPLAYER_FILEDESC, sizeof(CIC_COOLPLAYER_FILEDESC));
+								  CIC_RTPLAYER_FILEDESC, sizeof(CIC_RTPLAYER_FILEDESC));
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_FILETYPE "\\DefaultIcon",
+								   CIC_RTPLAYER_FILETYPE "\\DefaultIcon",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
@@ -446,19 +446,19 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 								  strlen(stringval) + 1);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_FILETYPE "\\Shell", 0,
+								   CIC_RTPLAYER_FILETYPE "\\Shell", 0,
 								   NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_FILETYPE "\\Shell\\Open",
+								   CIC_RTPLAYER_FILETYPE "\\Shell\\Open",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_FILETYPE "\\Shell\\Open\\command",
+								   CIC_RTPLAYER_FILETYPE "\\Shell\\Open\\command",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
@@ -468,13 +468,13 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 					RegCloseKey(result);
 					
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_FILETYPE "\\Shell\\CoolPlayer Queue",
+								   CIC_RTPLAYER_FILETYPE "\\Shell\\RTPlayer Queue",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_FILETYPE "\\Shell\\CoolPlayer Queue\\command",
+								   CIC_RTPLAYER_FILETYPE "\\Shell\\RTPlayer Queue\\command",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
@@ -484,13 +484,13 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 					RegCloseKey(result);
 					
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_FILETYPE "\\Shell\\CoolPlayer Play",
+								   CIC_RTPLAYER_FILETYPE "\\Shell\\RTPlayer Play",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_FILETYPE "\\Shell\\CoolPlayer Play\\command",
+								   CIC_RTPLAYER_FILETYPE "\\Shell\\RTPlayer Play\\command",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
@@ -505,7 +505,7 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegSetValueEx(result, NULL, 0, REG_SZ,
-								  CIC_COOLPLAYER_PLAYLISTFILETYPE, sizeof(CIC_COOLPLAYER_PLAYLISTFILETYPE));
+								  CIC_RTPLAYER_PLAYLISTFILETYPE, sizeof(CIC_RTPLAYER_PLAYLISTFILETYPE));
 					RegCloseKey(result);
 					
 					RegCreateKeyEx(HKEY_CLASSES_ROOT, ".pls", 0, NULL,
@@ -513,18 +513,18 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegSetValueEx(result, NULL, 0, REG_SZ,
-								  CIC_COOLPLAYER_PLAYLISTFILETYPE, sizeof(CIC_COOLPLAYER_PLAYLISTFILETYPE));
+								  CIC_RTPLAYER_PLAYLISTFILETYPE, sizeof(CIC_RTPLAYER_PLAYLISTFILETYPE));
 					RegCloseKey(result);
 					
-					RegCreateKeyEx(HKEY_CLASSES_ROOT, CIC_COOLPLAYER_PLAYLISTFILETYPE,
+					RegCreateKeyEx(HKEY_CLASSES_ROOT, CIC_RTPLAYER_PLAYLISTFILETYPE,
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegSetValueEx(result, NULL, 0, REG_SZ,
-								  CIC_COOLPLAYER_PLAYLISTFILEDESC, sizeof(CIC_COOLPLAYER_PLAYLISTFILEDESC));
+								  CIC_RTPLAYER_PLAYLISTFILEDESC, sizeof(CIC_RTPLAYER_PLAYLISTFILEDESC));
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_PLAYLISTFILETYPE "\\DefaultIcon",
+								   CIC_RTPLAYER_PLAYLISTFILETYPE "\\DefaultIcon",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
@@ -533,19 +533,19 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 								  strlen(stringval) + 1);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_PLAYLISTFILETYPE "\\Shell", 0,
+								   CIC_RTPLAYER_PLAYLISTFILETYPE "\\Shell", 0,
 								   NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_PLAYLISTFILETYPE "\\Shell\\Open",
+								   CIC_RTPLAYER_PLAYLISTFILETYPE "\\Shell\\Open",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_PLAYLISTFILETYPE "\\Shell\\Open\\command",
+								   CIC_RTPLAYER_PLAYLISTFILETYPE "\\Shell\\Open\\command",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
@@ -555,13 +555,13 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 					RegCloseKey(result);
 					
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_PLAYLISTFILETYPE "\\Shell\\CoolPlayer Queue",
+								   CIC_RTPLAYER_PLAYLISTFILETYPE "\\Shell\\RTPlayer Queue",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_PLAYLISTFILETYPE "\\Shell\\CoolPlayer Queue\\command",
+								   CIC_RTPLAYER_PLAYLISTFILETYPE "\\Shell\\RTPlayer Queue\\command",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
@@ -570,13 +570,13 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 								  strlen(stringval) + 1);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_PLAYLISTFILETYPE "\\Shell\\CoolPlayer Play",
+								   CIC_RTPLAYER_PLAYLISTFILETYPE "\\Shell\\RTPlayer Play",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   CIC_COOLPLAYER_PLAYLISTFILETYPE "\\Shell\\CoolPlayer Play\\command",
+								   CIC_RTPLAYER_PLAYLISTFILETYPE "\\Shell\\RTPlayer Play\\command",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
@@ -587,13 +587,13 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 					
 					// Folder handlers
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   "Folder\\Shell\\CoolPlayer Play",
+								   "Folder\\Shell\\RTPlayer Play",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
 					RegCloseKey(result);
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   "Folder\\Shell\\CoolPlayer Play\\command",
+								   "Folder\\Shell\\RTPlayer Play\\command",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
@@ -603,7 +603,7 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 					RegCloseKey(result);
 					
 					RegCreateKeyEx(HKEY_CLASSES_ROOT,
-								   "Folder\\Shell\\CoolPlayer Queue\\command",
+								   "Folder\\Shell\\RTPlayer Queue\\command",
 								   0, NULL, REG_OPTION_NON_VOLATILE,
 								   KEY_ALL_ACCESS, NULL, &result,
 								   &lpdwDisposition);
@@ -613,14 +613,14 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 					RegCloseKey(result);
 					
 					
-					RegDeleteKey(HKEY_CLASSES_ROOT, CIC_COOLPLAYER_FILETYPE "\\Shell\\Enqueue in CoolPlayer\\command");
-					RegDeleteKey(HKEY_CLASSES_ROOT, CIC_COOLPLAYER_FILETYPE "\\Shell\\Enqueue in CoolPlayer\\");
-					RegDeleteKey(HKEY_CLASSES_ROOT, CIC_COOLPLAYER_PLAYLISTFILETYPE "\\Shell\\Enqueue in CoolPlayer\\command");
-					RegDeleteKey(HKEY_CLASSES_ROOT, CIC_COOLPLAYER_PLAYLISTFILETYPE "\\Shell\\Enqueue in CoolPlayer\\");
+					RegDeleteKey(HKEY_CLASSES_ROOT, CIC_RTPLAYER_FILETYPE "\\Shell\\Enqueue in RTPlayer\\command");
+					RegDeleteKey(HKEY_CLASSES_ROOT, CIC_RTPLAYER_FILETYPE "\\Shell\\Enqueue in RTPlayer\\");
+					RegDeleteKey(HKEY_CLASSES_ROOT, CIC_RTPLAYER_PLAYLISTFILETYPE "\\Shell\\Enqueue in RTPlayer\\command");
+					RegDeleteKey(HKEY_CLASSES_ROOT, CIC_RTPLAYER_PLAYLISTFILETYPE "\\Shell\\Enqueue in RTPlayer\\");
 					
 					MessageBox(hwndDlg,
-							   "Filetypes are registered.\nYou can doubleclick a supported file to run CoolPlayer.",
-							   "CoolPlayer", MB_ICONINFORMATION);
+							   "Filetypes are registered.\nYou can doubleclick a supported file to run RTPlayer.",
+							   "RTPlayer", MB_ICONINFORMATION);
 					           
 					break;
 				}
@@ -644,7 +644,7 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 					                           
 					SHGetPathFromIDList(ppidl, startmenu);
 					
-					sprintf(linkname, "%s\\CoolPlayer.lnk", startmenu);
+					sprintf(linkname, "%s\\RTPlayer.lnk", startmenu);
 					ExpandEnvironmentStrings(linkname, // pointer to string with environment variables
 											 linkname2, // pointer to string with expanded environment
 											 // variables
@@ -655,7 +655,7 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 					
 					SHGetPathFromIDList(ppidl, startmenu);
 					
-					sprintf(linkname, "%s\\CoolPlayer.lnk", startmenu);
+					sprintf(linkname, "%s\\RTPlayer.lnk", startmenu);
 					ExpandEnvironmentStrings(linkname, // pointer to string with environment variables
 											 linkname2, // pointer to string with expanded environment
 											 // variables
@@ -664,8 +664,8 @@ options_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 					path_create_link(pathname, linkname2, NULL);
 					CoUninitialize();
 					MessageBox(hwndDlg,
-							   "An icon for CoolPlayer has been created in the StartMenu and Desktop.",
-							   "CoolPlayer", MB_ICONINFORMATION);
+							   "An icon for RTPlayer has been created in the StartMenu and Desktop.",
+							   "RTPlayer", MB_ICONINFORMATION);
 					break;
 				}
 			}

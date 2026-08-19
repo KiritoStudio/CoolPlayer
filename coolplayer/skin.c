@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -288,7 +288,7 @@ int     main_skin_open(char *name)
 	GetPrivateProfileString(NULL, NULL, NULL,
 							buffer, sizeof(buffer), pathbuf);
 	                        
-	returnval = GetPrivateProfileSection("CoolPlayer Skin", // address of section name
+	returnval = GetPrivateProfileSection("RTPlayer Skin", // address of section name
 										 values, // address of return buffer
 										 32767, // size of return buffer
 										 pathbuf // address of initialization filename
@@ -297,7 +297,7 @@ int     main_skin_open(char *name)
 	if (returnval == 0)
 	{
 		char    textbuf[MAX_PATH + 50];
-		sprintf(textbuf, "Not a valid CoolPlayer Skin file: %s", pathbuf);
+		sprintf(textbuf, "Not a valid RTPlayer Skin file: %s", pathbuf);
 		MessageBox(GetForegroundWindow(), textbuf, "error", MB_ICONERROR);
 		options.use_default_skin = TRUE;
 		return FALSE;

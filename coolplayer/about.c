@@ -1,5 +1,5 @@
 /*
-* CoolPlayer - Blazing fast audio player.
+* RTPlayer - Blazing fast audio player.
 * Copyright (C) 2000-2001 Niek Albers
 *
 * This program is free software; you can redistribute it and/or modify
@@ -52,7 +52,7 @@ LRESULT CALLBACK about_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM 
 		case WM_INITDIALOG:
 		{
 			char cTitle[100];
-			sprintf(cTitle, "About CoolPlayer %d", CP_BUILD_NUMBER);
+			sprintf(cTitle, "About RTPlayer %d", CP_BUILD_NUMBER);
 			SetWindowText(hwndDlg, cTitle);
 
 			// Setup up jumping head timer
@@ -100,7 +100,7 @@ LRESULT CALLBACK about_windowproc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM 
 					break;
 
 				case IDC_WEBSITE:
-					ShellExecute(0, 0, "http://coolplayer.sourceforge.net", 0, 0, SW_SHOWDEFAULT);
+					ShellExecute(0, 0, "https://github.com/KiritoStudio/RTPlayer", 0, 0, SW_SHOWDEFAULT);
 					break;
 
 				case IDC_KEYBOARDRADIO:

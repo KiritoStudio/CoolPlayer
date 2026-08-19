@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -153,7 +153,7 @@ typedef struct _CIs_ListViewData
 #define CPC_TIMERID_AUTOREPEAT   1
 #define CPC_LISTDRAGDISTANCE   4
 LRESULT CALLBACK exp_ListViewWindowProc(HWND hWnd, UINT uiMessage, WPARAM wParam, LPARAM lParam);
-#define CLC_COOLPLAYER_LISTVIEW_WINDOWCLASSNAME "CoolPlayer_ListView"
+#define CLC_RTPLAYER_LISTVIEW_WINDOWCLASSNAME "RTPlayer_ListView"
 ////////////////////////////////////////////////////////////////////////////////
 //
 //
@@ -173,7 +173,7 @@ CP_HLISTVIEW CLV_Create(HWND hWndParent, const int iX, const int iY, const int i
 	wcPlaylist.hCursor = NULL;
 	wcPlaylist.hbrBackground = (HBRUSH)GetStockObject(HOLLOW_BRUSH); // Prevent the system drawing white over our invaid rgn before we can paint
 	wcPlaylist.lpszMenuName = NULL;
-	wcPlaylist.lpszClassName = CLC_COOLPLAYER_LISTVIEW_WINDOWCLASSNAME;
+	wcPlaylist.lpszClassName = CLC_RTPLAYER_LISTVIEW_WINDOWCLASSNAME;
 	RegisterClass(&wcPlaylist);
 	
 	pListData = (CIs_ListViewData*)malloc(sizeof(CIs_ListViewData));
@@ -205,7 +205,7 @@ CP_HLISTVIEW CLV_Create(HWND hWndParent, const int iX, const int iY, const int i
 	pListData->m_hndlr_UnhandledKeyPress = NULL;
 	
 	hWndWindow = CreateWindowEx(WS_EX_ACCEPTFILES,
-								CLC_COOLPLAYER_LISTVIEW_WINDOWCLASSNAME,
+								CLC_RTPLAYER_LISTVIEW_WINDOWCLASSNAME,
 								"",
 								WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE,
 								iX, iY, iWidth, iHeight, hWndParent,

@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -87,7 +87,7 @@ unsigned int _stdcall EP_FillerThread(void* _pContext)
 	PostMessage(pContext->m_hWndNotify, CPNM_SETSTREAMINGSTATE, (WPARAM)TRUE, (LPARAM)0);
 	
 	// Check that we can open this file
-	hInternet = InternetOpen("CoolPlayer",
+	hInternet = InternetOpen("RTPlayer",
 							 INTERNET_OPEN_TYPE_PRECONFIG,
 							 NULL, NULL, 0L);
 	                         

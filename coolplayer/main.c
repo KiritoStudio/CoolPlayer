@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -225,7 +225,7 @@ void main_update_title_text()
 	if (hItem_Current)
 		pcText = CPLI_GetTrackName(hItem_Current);
 	else
-		pcText = "CoolPlayer";
+		pcText = "RTPlayer";
 		
 	stringlen = strlen(pcText);
 	
@@ -1302,7 +1302,7 @@ int     main_play_control(WORD wParam, HWND hWnd)
 	return 0;
 }
 
-void    cmdline_usage(HWND hWndCoolPlayer)
+void    cmdline_usage(HWND hWndRTPlayer)
 {
 	HRSRC   resource;
 	HGLOBAL globaldata;
@@ -1314,10 +1314,10 @@ void    cmdline_usage(HWND hWndCoolPlayer)
 							  resource);
 	                          
 	MessageBox(NULL, (LPCTSTR) LockResource(globaldata),
-			   "CoolPlayer command line options", 0); // text to set
+			   "RTPlayer command line options", 0); // text to set
 	           
 	// only quit if no existing instance
-	if (hWndCoolPlayer == NULL)
+	if (hWndRTPlayer == NULL)
 		PostQuitMessage(0);
 }
 
@@ -1571,19 +1571,19 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	HMENU   hpopup;
 	BOOL    bAlreadyRuning;
 	HANDLE  hMutexOneInstance;
-	HWND hWndCoolPlayer = NULL;
+	HWND hWndRTPlayer = NULL;
 
 	// Ensure that this system is audio capable
 
 	if (waveOutGetNumDevs() < 1)
 	{
-		MessageBox(GetDesktopWindow(), "No audio devices in this system", "CoolPlayer", MB_ICONSTOP | MB_OK);
+		MessageBox(GetDesktopWindow(), "No audio devices in this system", "RTPlayer", MB_ICONSTOP | MB_OK);
 		return -1;
 	}
 	
 	options_read();
 	
-	hMutexOneInstance = CreateMutex(NULL, FALSE, "COOLPLAYER-045FA840-B10D-2G3-3436-006067709674");
+	hMutexOneInstance = CreateMutex(NULL, FALSE, "RTPLAYER-045FA840-B10D-2G3-3436-006067709674");
 	bAlreadyRuning = (GetLastError() == ERROR_ALREADY_EXISTS
 					  || GetLastError() == ERROR_ACCESS_DENIED);
 	// The call fails with ERROR_ACCESS_DENIED if the Mutex was
@@ -1592,10 +1592,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 	
 	if (bAlreadyRuning)
 	{
-		// Find the other coolplayer instance
-		hWndCoolPlayer = FindWindow(CLC_COOLPLAYER_WINDOWCLASSNAME, NULL);
+		// Find the other rtplayer instance
+		hWndRTPlayer = FindWindow(CLC_RTPLAYER_WINDOWCLASSNAME, NULL);
 		
-		if (hWndCoolPlayer != NULL)
+		if (hWndRTPlayer != NULL)
 		{
 			if (lpCmdLine[0] != '\0')
 			{
@@ -1617,13 +1617,13 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				cds.lpData = __argv[0];
 				
 				
-				SendMessage(hWndCoolPlayer, WM_COPYDATA, (WPARAM)hWndCoolPlayer, (LPARAM)&cds);
+				SendMessage(hWndRTPlayer, WM_COPYDATA, (WPARAM)hWndRTPlayer, (LPARAM)&cds);
 			}
 			
 			else
 			{
-				SetForegroundWindow(hWndCoolPlayer);
-				ShowWindow(hWndCoolPlayer, SW_RESTORE);
+				SetForegroundWindow(hWndRTPlayer);
+				ShowWindow(hWndRTPlayer, SW_RESTORE);
 			}
 		}
 		
@@ -1680,7 +1680,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		
 	globals.main_int_show_minimized = nCmdShow;
 	
-	cmdline_parse_options(__argc, __argv, hWndCoolPlayer);
+	cmdline_parse_options(__argc, __argv, hWndRTPlayer);
 	
 	if (*options.main_skin_file && options.use_default_skin == FALSE)
 	{
@@ -1717,7 +1717,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 		ZeroMemory(&wc, sizeof(wc));
 		wc.style         = CS_OWNDC;
 		//wc.style = CS_PARENTDC;
-		wc.lpszClassName = CLC_COOLPLAYER_WINDOWCLASSNAME;
+		wc.lpszClassName = CLC_RTPLAYER_WINDOWCLASSNAME;
 		wc.lpfnWndProc = (WNDPROC) main_windowproc;
 		wc.hInstance = hInstance;
 		wc.hCursor = LoadCursor(NULL, IDC_ARROW);
@@ -1731,7 +1731,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			globals.m_hPlayer = NULL;
 			hWnd =
 				CreateWindowEx(WS_EX_ACCEPTFILES,
-							   CLC_COOLPLAYER_WINDOWCLASSNAME, "CoolPlayer",
+							   CLC_RTPLAYER_WINDOWCLASSNAME, "RTPlayer",
 							   WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
 							   options.main_window_pos.x,
 							   options.main_window_pos.y, MODERNUI_WINDOW_WIDTH,

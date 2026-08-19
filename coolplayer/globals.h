@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -64,13 +64,13 @@ typedef void* CP_HSYSICON;
 #define CPC_INVALIDCHAR					-1
 
 // Registry
-#define CIC_COOLPLAYER_FILETYPE						"CoolPlayer.Audio"
-#define CIC_COOLPLAYER_FILEDESC						"CoolPlayer Audio file"
-#define CIC_COOLPLAYER_PLAYLISTFILETYPE				"CoolPlayer.Playlist"
-#define CIC_COOLPLAYER_PLAYLISTFILEDESC				"CoolPlayer Playlist"
-#define CLC_COOLPLAYER_INTERFACECLASSNAME			"CoolPlayer_Interface"
-#define CLC_COOLPLAYER_WINDOWCLASSNAME				"CoolPlayer"
-#define CLC_COOLPLAYER_PLAYLIST_WINDOWCLASSNAME		"CoolPlayer_Playlist"
+#define CIC_RTPLAYER_FILETYPE						"RTPlayer.Audio"
+#define CIC_RTPLAYER_FILEDESC						"RTPlayer Audio file"
+#define CIC_RTPLAYER_PLAYLISTFILETYPE				"RTPlayer.Playlist"
+#define CIC_RTPLAYER_PLAYLISTFILEDESC				"RTPlayer Playlist"
+#define CLC_RTPLAYER_INTERFACECLASSNAME			"RTPlayer_Interface"
+#define CLC_RTPLAYER_WINDOWCLASSNAME				"RTPlayer"
+#define CLC_RTPLAYER_PLAYLIST_WINDOWCLASSNAME		"RTPlayer_Playlist"
 
 // Playlist columns
 #define PLAYLIST_TRACKSTACK				0

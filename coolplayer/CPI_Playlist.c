@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -1151,7 +1151,7 @@ void CPL_AddFile(CP_HPLAYLIST hPlaylist, const char* pcFilename)
 				(_strnicmp(pcFilename, CIC_FTPHEADER, sizeof(CIC_FTPHEADER) - 1) == 0))
 		{
 			// This playlist is located on the internet, so we have to download it.
-			hInternet = InternetOpen("CoolPlayer",
+			hInternet = InternetOpen("RTPlayer",
 									 INTERNET_OPEN_TYPE_PRECONFIG,
 									 NULL, NULL, 0L);
 			                         

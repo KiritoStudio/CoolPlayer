@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -132,7 +132,7 @@ void IF_ProcessInit()
 	wcPlaylist.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wcPlaylist.hbrBackground = (HBRUSH)GetStockObject(HOLLOW_BRUSH); // Prevent the system drawing white over our invaid rgn before we can paint
 	wcPlaylist.lpszMenuName = NULL;
-	wcPlaylist.lpszClassName = CLC_COOLPLAYER_INTERFACECLASSNAME;
+	wcPlaylist.lpszClassName = CLC_RTPLAYER_INTERFACECLASSNAME;
 	RegisterClass(&wcPlaylist);
 }
 
@@ -141,7 +141,7 @@ void IF_ProcessInit()
 //
 void IF_ProcessDeInit()
 {
-	UnregisterClass(CLC_COOLPLAYER_INTERFACECLASSNAME, GetModuleHandle(NULL));
+	UnregisterClass(CLC_RTPLAYER_INTERFACECLASSNAME, GetModuleHandle(NULL));
 }
 
 //
@@ -174,7 +174,7 @@ void IF_OpenWindow(CP_HINTERFACE hInterface, const char* pcTitle, const RECT* pI
 	
 	// Create Windows window
 	CreateWindowEx(WS_EX_ACCEPTFILES,
-				   CLC_COOLPLAYER_INTERFACECLASSNAME,
+				   CLC_RTPLAYER_INTERFACECLASSNAME,
 				   pcTitle,
 				   WS_POPUP | WS_CLIPCHILDREN | WS_SYSMENU
 				   | ((dwStyle & CPC_INTERFACE_STYLE_RESIZING) ? WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME : 0),

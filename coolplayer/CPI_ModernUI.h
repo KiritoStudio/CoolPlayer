@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - foobar2000-style native UI for the main window.
+ * RTPlayer - foobar2000-style native UI for the main window.
  *
  * This module owns the main window's client area. It hosts a panel of plain
  * Win32 common controls (transport buttons, seek and volume trackbars, a

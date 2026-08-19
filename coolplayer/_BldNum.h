@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-// Project: C:\coolplayer\coolplayer.dsp.  DO NOT MODIFY THIS FILE BY HAND.
+// Project: C:\rtplayer\rtplayer.dsp.  DO NOT MODIFY THIS FILE BY HAND.
 //
 #define BUILDNUM_ENABLED (1)
 #define MODIFY_VERSIONINFO (0)

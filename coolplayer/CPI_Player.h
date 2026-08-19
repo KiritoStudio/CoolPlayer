@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -44,7 +44,7 @@
 //
 // CPI_Player
 //
-// Here are the functions to control the back end of CoolPlayer.  All activity
+// Here are the functions to control the back end of RTPlayer.  All activity
 // relating to Streaming, Decoding and sound output will be accessed through
 // these functions.
 //

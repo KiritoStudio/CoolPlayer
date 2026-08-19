@@ -3,7 +3,7 @@
 <assemblyIdentity 
     version="1.0.0.0" 
     processorArchitecture="*"
-    name="CoolPlayer"   type="win32" 
+    name="RTPlayer"   type="win32" 
 /> 
 <description>Small, fast music player for MP3, OGG, and WAV files</description> 
 <dependency> 

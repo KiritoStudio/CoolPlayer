@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Developer Studio generated include file.
-// Used by coolplayer.rc
+// Used by rtplayer.rc
 //
 #define IDB_MAINUP                      101
 #define IDD_PLAYLIST                    108

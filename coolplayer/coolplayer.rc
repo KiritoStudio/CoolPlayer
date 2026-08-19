@@ -66,7 +66,7 @@ IDB_SYSICON_MASK        BITMAP  DISCARDABLE     "res\\SysIcon_Mask.bmp"
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-APP_ICON                ICON    DISCARDABLE     "res\\coolplayer.ico"
+APP_ICON                ICON    DISCARDABLE     "res\\rtplayer.ico"
 IDI_ICON_MP3            ICON    DISCARDABLE     "res\\mp3.ico"
 IDI_ICON_PLS            ICON    DISCARDABLE     "res\\pls.ico"
 
@@ -124,7 +124,7 @@ IDR_CHANGES             RAW     DISCARDABLE     "res\\changes.txt"
 IDD_ABOUT DIALOGEX 0, 0, 278, 211
 STYLE DS_MODALFRAME | DS_NOIDLEMSG | DS_SETFOREGROUND | DS_NOFAILCREATE | 
     DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "About CoolPlayer"
+CAPTION "About RTPlayer"
 FONT 8, "MS Sans Serif"
 BEGIN
     ICON            APP_ICON,IDC_ABOUTICON,6,7,20,20,0,WS_EX_TRANSPARENT
@@ -138,7 +138,7 @@ BEGIN
                     BS_PUSHLIKE,201,7,70,15
     EDITTEXT        IDC_ABOUTTEXT,31,27,240,153,ES_MULTILINE | ES_READONLY | 
                     WS_VSCROLL | WS_HSCROLL
-    PUSHBUTTON      "http://coolplayer.sourceforge.net",IDC_WEBSITE,31,189,
+    PUSHBUTTON      "github.com/KiritoStudio/RTPlayer",IDC_WEBSITE,31,189,
                     155,15
     DEFPUSHBUTTON   "C&lose",IDOK,201,189,70,15
 END
@@ -146,7 +146,7 @@ END
 IDD_OPTIONS DIALOG DISCARDABLE  0, 0, 250, 283
 STYLE DS_MODALFRAME | DS_SETFOREGROUND | DS_3DLOOK | DS_CENTER | WS_POPUP | 
     WS_CAPTION | WS_SYSMENU
-CAPTION "CoolPlayer Options"
+CAPTION "RTPlayer Options"
 FONT 8, "MS Sans Serif"
 BEGIN
     GROUPBOX        "General",-1,7,1,236,164
@@ -301,7 +301,7 @@ IDR_DEFAULTSKIN         SKIN    DISCARDABLE     "res\\Default.CPSkin"
 // 24
 //
 
-1                       24      DISCARDABLE     "res\\coolplayer.exe.manifest"
+1                       24      DISCARDABLE     "res\\rtplayer.exe.manifest"
 #endif    // English (U.K.) resources
 /////////////////////////////////////////////////////////////////////////////
 

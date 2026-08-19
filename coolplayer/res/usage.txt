@@ -1,4 +1,4 @@
-Usage: CoolPlayer [options] [file...]
+Usage: RTPlayer [options] [file...]
 
 Where options can be with - or /, '-'means 'off' and '+' means 'on'. 
 The commandline options override the configuration file. 
@@ -22,9 +22,9 @@ you can mix options and files:
 -/+shuffle		Shuffle mode.
 -/+fileonce		Allow a file only once in the playlist.
 -/+multipleinstances	Allow multiple instances.
--/+autoplay		Start playing when CoolPlayer starts.
--/+taskbar		Show CoolPlayer on the taskbar.
--exitnow			Exit a running instance of CoolPlayer
+-/+autoplay		Start playing when RTPlayer starts.
+-/+taskbar		Show RTPlayer on the taskbar.
+-exitnow			Exit a running instance of RTPlayer
 -minimized		Run minimized.
 -mode 1..4		Mode: 1=Stereo, 2=Mono L, 3=Mono R, 4=Mono Mix.
 -priority 0..4		Priority 0=low, 4=high.

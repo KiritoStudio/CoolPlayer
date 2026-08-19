@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -47,7 +47,7 @@ void    options_read(void)
 	int iColIDX;
 	
 	main_get_program_path(NULL, pathbuf, MAX_PATH);
-	strcat(pathbuf, "coolplayer.ini");
+	strcat(pathbuf, "rtplayer.ini");
 	
 	for (iColIDX = PLAYLIST_first; iColIDX <= PLAYLIST_last; iColIDX++)
 	{
@@ -274,7 +274,7 @@ void    options_write()
 	int iColIDX;
 	
 	main_get_program_path(NULL, pathbuf, MAX_PATH);
-	strcat(pathbuf, "coolplayer.ini");
+	strcat(pathbuf, "rtplayer.ini");
 	
 	for (iColIDX = PLAYLIST_first; iColIDX <= PLAYLIST_last; iColIDX++)
 	{

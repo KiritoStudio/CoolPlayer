@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - Blazing fast audio player.
+ * RTPlayer - Blazing fast audio player.
  * Copyright (C) 2000-2001 Niek Albers
  *
  * This program is free software; you can redistribute it and/or modify
@@ -130,7 +130,7 @@ void CPlaylistWindow_Create()
 	CPlaylistWindow_CreateSubparts();
 	
 	IF_SetMinSize(windows.m_hifPlaylist, &glb_pSkin->mpl_szMinWindow);
-	IF_OpenWindow(windows.m_hifPlaylist, "CoolPlayer Playlist", &options.playlist_window_pos, CPC_INTERFACE_STYLE_RESIZING);
+	IF_OpenWindow(windows.m_hifPlaylist, "RTPlayer Playlist", &options.playlist_window_pos, CPC_INTERFACE_STYLE_RESIZING);
 	IF_SetVisible(windows.m_hifPlaylist, options.show_playlist);
 }
 
@@ -642,7 +642,7 @@ void CPlaylistWindow_CreateIPEdit(const int iItem, const int iSubItem)
 	
 	if (CPLI_GetReadWriteState(hClickedItem) != rwsReadWrite)
 	{
-		MessageBox(windows.m_hWndPlaylist, "This file's ID3 tag cannot be updated.  This is because CoolPlayer cannot write to this file.", "Cannot update tag", MB_OK | MB_ICONSTOP);
+		MessageBox(windows.m_hWndPlaylist, "This file's ID3 tag cannot be updated.  This is because RTPlayer cannot write to this file.", "Cannot update tag", MB_OK | MB_ICONSTOP);
 		return;
 	}
 	

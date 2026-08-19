@@ -1,5 +1,5 @@
 /*
- * CoolPlayer - foobar2000-style native UI for the main window.
+ * RTPlayer - foobar2000-style native UI for the main window.
  *
  * Implementation notes:
  *  - Everything is a plain Win32 common control hosted on one child panel:
@@ -60,7 +60,7 @@
 #define FOO_TOOLBAR_H    32
 #define FOO_SEEK_GRAN    1000
 
-static const char* FOOCLASS_PANEL = "CoolPlayerFooPanel";
+static const char* FOOCLASS_PANEL = "RTPlayerFooPanel";
 
 ////////////////////////////////////////////////////////////////////////////////
 // State
