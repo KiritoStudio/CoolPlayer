@@ -81,6 +81,10 @@ static WNDPROC g_pfnStatusOrigProc = NULL;
 static WNDPROC g_pfnTrackbarOrigProc = NULL;
 static HFONT g_hFontUI = NULL;
 
+// Rows still owed to the playlist ListView from wheel notches that arrived
+// faster than a repaint could keep up with - see RouteMouseWheel.
+static int s_iPendingListScrollRows = 0;
+
 static BOOL g_bSeekDragging = FALSE;
 static int g_iBatchDepth = 0;
 static BOOL g_bBatchDirty = FALSE;
@@ -666,21 +670,75 @@ static BOOL RouteMouseWheel(POINT pt, WPARAM wParam, LPARAM lParam)
 	if (g_hList && GetWindowRect(g_hList, &rc) && PtInRect(&rc, pt))
 	{
 		short zDelta = (short)HIWORD(wParam);
-		RECT rcItem;
-		int itemHeight = 18;  // fallback if the list has no rows to measure yet
+		MSG msgPeek;
 
-		// LVM_GETITEMSPACING only applies to icon/tile views, not LVS_REPORT
-		// (the one this list uses) - measuring an actual row's rect is the
-		// correct way to get a report-view row height.
-		if (ListView_GetItemRect(g_hList, 0, &rcItem, LVIR_BOUNDS))
-			itemHeight = rcItem.bottom - rcItem.top;
+		// This device has no touch/gesture handling anywhere (no WM_GESTURE/
+		// WM_TOUCH, no touch-aware manifest declaration), so a finger drag on
+		// this touchscreen doesn't reach us as a pan - Windows falls back to
+		// synthesizing a burst of WM_MOUSEWHEEL messages instead, far denser
+		// than discrete notches from a physical wheel and with no gap for a
+		// repaint in between.
+		//
+		// LVM_SCROLL doesn't render anything itself - it blits the *current*
+		// on-screen pixels to their new position and invalidates only the
+		// newly-exposed strip, trusting a later WM_PAINT to fill that strip
+		// in. Calling it again before that WM_PAINT ever runs (which is
+		// exactly what happens under a dense burst) blits an already-stale,
+		// not-yet-repainted frame - so each subsequent notch smears the
+		// previous notch's un-rendered gap further down the list instead of
+		// starting from a clean frame, and it keeps compounding for as long
+		// as the burst keeps arriving faster than paint can catch up - the
+		// list having only a couple dozen rows is irrelevant, since it's not
+		// a per-row rendering bug: it's the same stale frame being shifted
+		// and reshifted before it's ever finished being drawn once.
+		//
+		// Fix: accumulate this notch's distance and, if another
+		// WM_MOUSEWHEEL is already queued up right behind it, stop here
+		// without touching the list at all - let the last notch in the
+		// burst be the only one that actually scrolls and repaints, once
+		// there's nothing left to immediately compound on top of.
+		s_iPendingListScrollRows += (zDelta < 0 ? 3 : -3);
 
-		// zDelta isn't guaranteed to be a clean multiple of WHEEL_DELTA
-		// (precision touchpads/trackballs routinely report smaller deltas
-		// per notch) - dividing first (zDelta / WHEEL_DELTA) truncates to 0
-		// for any single notch below that, silently turning every scroll
-		// into a no-op. Just use the sign and move a fixed 3 rows per call.
-		ListView_Scroll(g_hList, 0, (zDelta < 0 ? 1 : -1) * 3 * itemHeight);
+		if (PeekMessage(&msgPeek, NULL, WM_MOUSEWHEEL, WM_MOUSEWHEEL, PM_NOREMOVE))
+			return TRUE;
+
+		if (s_iPendingListScrollRows != 0)
+		{
+			RECT rcItem;
+			int itemHeight = 18;  // fallback if the list has no rows to measure yet
+
+			// LVM_GETITEMSPACING only applies to icon/tile views, not
+			// LVS_REPORT (the one this list uses) - measuring an actual
+			// row's rect is the correct way to get a report-view row height.
+			if (ListView_GetItemRect(g_hList, 0, &rcItem, LVIR_BOUNDS))
+				itemHeight = rcItem.bottom - rcItem.top;
+
+			// ListView_Scroll's internal pixel-shift paints straight to the
+			// screen the moment it's called - coalescing above cuts down
+			// how *often* that happens under a burst, but even a single
+			// call still puts a shifted-with-a-blank-strip frame on screen
+			// for however long it takes WM_PAINT to catch up and fill it
+			// in, and that gap is what's still visible. WM_SETREDRAW is the
+			// same trick RebuildPlaylistRows already uses below for the
+			// same reason (bulk delete+reinsert): turn screen updates off,
+			// do the (visually messy, multi-step) work, turn them back on,
+			// then ask for one single explicit repaint. Nothing this
+			// control does to itself while WM_SETREDRAW is off reaches the
+			// screen, so the user only ever sees the frame from before this
+			// scroll and the frame from after it - never anything from the
+			// scroll's own intermediate blit.
+			SendMessage(g_hList, WM_SETREDRAW, FALSE, 0);
+			ListView_Scroll(g_hList, 0, s_iPendingListScrollRows * itemHeight);
+			s_iPendingListScrollRows = 0;
+			SendMessage(g_hList, WM_SETREDRAW, TRUE, 0);
+
+			// Force a full repaint rather than trusting the scroll's own
+			// partial one - same reasoning as StatusBarSubclassProc's
+			// comment on this hardware's GDI stack leaving stale pixels
+			// behind on partial invalidates.
+			InvalidateRect(g_hList, NULL, TRUE);
+		}
+
 		return TRUE;
 	}
 
